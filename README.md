@@ -76,6 +76,7 @@ Open **Connect Meta AI**, enter your key, and save. Alternatively set the enviro
 
 | Action | Data sent to Meta | Result |
 |---|---|---|
+| Blender checkpoint analysis | Current viewport screenshot and the previous capture when available | Muse Spark 1.3 describes the first capture or visible changes since the previous one. SAM 3.1 can outline the changed part. Screenshots and analysis stay with the revision node. |
 | Ask Meta to organize | Sample filenames and nearby folders, selected tools, tasks and existing asset names | Editable suggestions for canonical asset, discipline, type and classification. Available during a scan with a key or on demand in review. |
 | Studio assistant during practice and setup | Current lesson and coaching question | A short live introduction or contextual answer. The guided exercises work without a key. |
 | Highlight changes | The two selected revision previews, in order | Muse Spark 1.3 identifies visible changes with independent markers on each image. Save comparison to keep the markers and text on that pair. |

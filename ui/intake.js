@@ -328,6 +328,17 @@ function showHelpStory(){
    storyFileCard(280,58,"model_v001.spp","Texturing","painter"),
    storyFileCard(280,230,"model_v001.ztl","Sculpting","zbrush")
   ])},
+  {label:"Blender checkpoints",title:"What did you just change? Capture it.",copy:[
+   "With the Blender add-on installed, hover over your 3D View and press Ctrl + Alt + Shift + C. Capture your viewport right where you’re working. A tracked file gets another checkpoint; a new file can become a node under an existing asset.",
+   "With Meta connected, Muse Spark describes the first capture, then compares later captures with the previous screenshot. SAM can outline the changed part. Keep the screenshots and AI notes with your node, and add your own reason for the change."
+  ],art:`<div class="story-checkpoint">${storyMap("Capture your Blender viewport with Ctrl Alt Shift C and keep screenshots and analysis with the file’s node.",[
+   "M124 141V176H250V205","M376 141V176H250"
+  ],[
+   `<g class="checkpoint-shortcut" transform="translate(61 18)"><rect width="378" height="40" rx="8"/><text x="189" y="26" text-anchor="middle">Ctrl + Alt + Shift + C</text></g>`,
+   storyFileCard(25,83,"model_v001.blend","Checkpoint · 10:02","blender",198),
+   storyFileCard(277,83,"model_v001.blend","Checkpoint · 10:18","blender",198),
+   `<g class="map-note" transform="translate(48 205)"><rect width="404" height="94" rx="8"/><text x="17" y="27">MUSE SPARK + SAM</text><text x="17" y="51">What changed in your viewport?</text><text class="file-caption" x="17" y="74">Review the analysis. Add why you changed it.</text></g>`
+  ])}</div>`},
   {label:"Compare",title:"Which version do you want to use?",copy:[
    "Unsure what changed between two Blender saves or other project files? Select the two revisions in Compare.",
    "Muse Spark looks at their saved previews side by side, marks visible differences, and drafts a comparison note. You can edit it and save it with the pair."

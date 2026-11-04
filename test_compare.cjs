@@ -318,10 +318,12 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   assert.deepEqual(await ev("[...document.querySelectorAll('.story-options a')].map(a=>a.getAttribute('href'))"),["?demo=branches","?demo=trace","?demo=compare"]);
   assert.equal(await ev("document.querySelector('.story-home').getAttribute('href')"),"?view=welcome");
   assert.match(await ev("document.querySelector('.story-nav .home-brand').textContent"),/Game Dev's Best Friend/);
+  await ev("document.querySelector('.inline-scene .story-checkpoint').closest('.story-chapter').scrollIntoView({block:'center'})");
+  await until(()=>ev("!!document.querySelector('.scene-layer.current .story-checkpoint')"),"scroll advances the Blender checkpoint illustration");
   await ev("document.querySelector('.inline-scene .story-pair').closest('.story-chapter').scrollIntoView({block:'center'})");
   await until(()=>ev("!!document.querySelector('.scene-layer.current .story-pair')"),"scroll advances the comparison illustration");
   await ev("document.querySelector('.inline-scene .story-trace').closest('.story-chapter').scrollIntoView({block:'center'})");
-  await until(()=>ev("document.querySelector('.board-foot span').textContent==='05 / 05' && !!document.querySelector('.scene-layer.current .story-trace')"),"final screenshot trace chapter");
+  await until(()=>ev("document.querySelector('.board-foot span').textContent==='06 / 06' && !!document.querySelector('.scene-layer.current .story-trace')"),"final screenshot trace chapter");
   await mouse('.story-options a[href="?demo=branches"]');
   await until(()=>ev("!!document.querySelector('.branch-choices')"),"branch learning choices");
   assert.equal(await ev("document.querySelectorAll('.branch-choices section').length"),2);
