@@ -2,7 +2,7 @@
 function visualReview(out,a,b,saved){
  const review={current:saved?.beforePreview===a.preview&&saved?.afterPreview===b.preview?saved:null};
  const panel=document.createElement("section");panel.className="panel visual-review";out.prepend(panel);
- panel.innerHTML=`<div class="spread"><div><small class="eyebrow">Meta vision</small><h2>Visual change markers</h2></div><button type="button" class="primary" data-highlight>Highlight changes</button></div><p class="sub">Inspect the two previews and point to what changed.</p><div data-findings aria-live="polite"></div><label class="marker-toggle" hidden><input type="checkbox" checked> Show markers on both previews</label>`;
+ panel.innerHTML=`<div class="spread"><div><small class="eyebrow">Meta vision</small><h2>Visual change markers</h2></div><button type="button" class="primary ai-action" data-highlight>Highlight changes</button></div><p class="sub">Inspect the two previews and point to what changed.</p><div data-findings aria-live="polite"></div><label class="marker-toggle" hidden><input type="checkbox" checked> Show markers on both previews</label>`;
  const button=panel.querySelector("[data-highlight]"),findings=panel.querySelector("[data-findings]");
  const toggle=panel.querySelector(".marker-toggle"),visibility=toggle.querySelector("input");let active=0;visibility.onchange=paint;
  function paint(){
@@ -19,7 +19,8 @@ function visualReview(out,a,b,saved){
    findings.querySelectorAll("[data-marker]").forEach((b,i)=>b.setAttribute("aria-pressed",String(i===active)))
  }
  function draw(){
-   const v=review.current;if(!v)return;toggle.hidden=!v.changes.length;
+   const v=review.current;toggle.hidden=!v?.changes.length;
+   if(!v){findings.replaceChildren();return}
    findings.innerHTML=`<p>${esc(v.summary)}</p><div class="marker-list">${v.changes.map((c,i)=>`<button type="button" data-marker="${i}"><strong>${i+1} · ${esc(c.part)}</strong> ${esc(c.detail)}</button>`).join("")}</div>`;
    for(const b of findings.querySelectorAll("[data-marker]"))b.onclick=b.onpointerenter=b.onfocus=()=>{active=Number(b.dataset.marker);paint()};
    paint()
@@ -44,18 +45,26 @@ function visualReview(out,a,b,saved){
 }
 
 function traceScreenshot(r,revs,useExample=false){
- const candidates=orderedRevisions(revs.filter(v=>v.preview));
+ if(!revs.length){
+   revisionForm(null,{record:r.id});
+   $("#fields").insertAdjacentHTML("afterbegin",`<p>To trace a screenshot to ${esc(r.name)}, choose its source file and attach a preview of that version. Then open Screenshot trace again.</p>`);
+   return
+ }
+ let candidates=orderedRevisions(revs.filter(v=>v.preview));
  const example=project().id==="canopy"&&r.id==="bird";
- const choices=candidates.map((v,i)=>`<label class="trace-candidate"><input type="checkbox" value="${esc(v.id)}" ${i>=candidates.length-8?"checked":""}>${image(v.preview,"candidate-thumb","")}<span>${toolIcon(toolName(v.tool))} ${esc(fileName(v)||revisionLabel(v))}<small>${esc(v.path||v.branch)}</small></span></label>`).join("");
- modal("Trace a screenshot",`<div id="tracePane"><small class="eyebrow">Meta vision · ${esc(r.name)}</small>
+ const choices=checked=>candidates.map(v=>`<label class="trace-candidate"><input type="checkbox" value="${esc(v.id)}" ${checked.includes(v.id)?"checked":""}>${image(v.preview,"candidate-thumb","")}<span>${toolIcon(toolName(v.tool))} ${esc(fileName(v)||revisionLabel(v))}<small>${esc(v.path||v.branch)}</small></span></label>`).join("");
+ const missingOptions=()=>orderedRevisions(revs.filter(v=>!v.preview)).map(v=>opt(v.id,v.path||revisionLabel(v),"")).join("");
+ const missing=missingOptions();
+ modal(traceLabel,`<div id="tracePane"><small class="eyebrow">Meta vision · ${esc(r.name)}</small>
  <div class="trace-workspace">
    <section class="trace-source"><h3>1. Pick the subject</h3><p>Paste your engine screenshot. Click the asset for a SAM 3.1 crop, or drag a box around it.</p>
    <details class="trace-input" open><summary>Choose screenshot</summary>${pictureField("traceShot","")}${example?'<button type="button" data-sample>Use example playtest frame</button>':""}</details>
    <div class="trace-crop" hidden><canvas tabindex="0" aria-label="Screenshot. Drag to crop to the asset."></canvas><div class="trace-box" hidden></div></div>
    <div class="trace-controls"><button type="button" data-full>Use full frame</button><small data-size></small></div></section>
    <section class="trace-revisions"><h3>2. Find the revision</h3><p>Muse Spark checks the region against the previews you choose.</p>
-   <details class="trace-choices" open><summary>Candidate revisions <span data-count></span></summary>${choices||"<p>Attach a preview to a revision in History first.</p>"}</details>
-   ${hasKey?"":`<details class="trace-key"><summary>${metaLensMark()} Connect Meta AI</summary><p>Connect a key to crop this subject and match it against the checked revisions.</p><label>Meta Model API key<input type="password" data-key autocomplete="off" spellcheck="false"></label><button type="button" data-connect>Connect for this session</button></details>`}<button type="button" class="primary" data-trace>Find matching revisions</button><div data-trace-results aria-live="polite"></div></section>
+   <details class="trace-choices" open><summary>Candidate revisions <span data-count></span></summary><div data-candidates>${choices(candidates.slice(-8).map(v=>v.id))}</div></details>
+   ${missing?`<details class="trace-reference" ${candidates.length?"":"open"}><summary>Add a file preview</summary><p>Choose a revision and attach a screenshot of that file open in your editor. Muse Spark uses this as its reference.</p>${select("traceRevision","Source revision",missing)}${pictureField("traceReference")}<button type="button" data-save-reference>Save file preview</button><small data-reference-status role="status"></small></details>`:""}
+   ${hasKey?"":`<details class="trace-key"><summary>${metaLensMark()} Connect Meta AI</summary><p>Connect a key to crop this subject and match it against the checked revisions.</p><label>Meta Model API key<input type="password" data-key autocomplete="off" spellcheck="false"></label><button type="button" data-connect>Connect for this session</button></details>`}<button type="button" class="primary ai-action" data-trace>Find matching revisions</button><div data-trace-results aria-live="polite"></div></section>
  </div><small class="trace-disclosure">Clicking sends the frame and point to Meta. Matching sends only the selected region and checked previews. Filenames and notes stay on your PC.</small></div>`,()=>{},"Done");
  const pane=$("#tracePane"),field=$("#traceShot"),wrap=pane.querySelector(".trace-crop"),canvas=wrap.querySelector("canvas"),outline=wrap.querySelector(".trace-box"),results=pane.querySelector("[data-trace-results]"),run=pane.querySelector("[data-trace]"),size=pane.querySelector("[data-size]");
  const keyBox=pane.querySelector(".trace-key");
@@ -78,6 +87,30 @@ function traceScreenshot(r,revs,useExample=false){
    else size.textContent=crop?"Comparing the outlined region.":ready?"Comparing the full screenshot.":"";
  }
  function invalidate(){version++;pending=false;results.replaceChildren();run.textContent="Find matching revisions";sync()}
+ const saveReference=pane.querySelector("[data-save-reference]");
+ if(saveReference)saveReference.onclick=async()=>{
+   const key=val("traceRevision"),input=$("#traceReference"),file=input.files[0],status=pane.querySelector("[data-reference-status]");
+   if(!file){status.textContent=" Choose or paste a preview of the selected revision first.";input.focus();return}
+   saveReference.disabled=true;
+   try{
+     const path=await uploadPreview(file);
+     if(!dialog.open||!pane.isConnected)return;
+     await change(p=>{
+       const v=find(p.revisions,key);
+       if(!v||v.record!==r.id||v.preview)throw Error("This revision changed. Reopen screenshot trace to see its current preview.");
+       v.preview=path
+     });
+     if(!dialog.open||!pane.isConnected)return;
+     const checked=checks();
+     if(checked.length<8)checked.push(key);
+     revs=project().revisions.filter(v=>v.record===r.id);candidates=orderedRevisions(revs.filter(v=>v.preview));
+     pane.querySelector("[data-candidates]").innerHTML=choices(checked);
+     $("#traceRevision").innerHTML=missingOptions();
+     input.value="";input.closest(".image-field").querySelector(".paste-status").textContent="";
+     const details=saveReference.closest("details");details.open=false;details.hidden=!$("#traceRevision").options.length;
+     invalidate();render();toast("File preview saved.")
+   }catch(err){status.textContent=" "+err.message}finally{saveReference.disabled=false}
+ };
  pane.querySelector(".trace-choices").onchange=invalidate;
  function drawBox(){
    outline.hidden=!crop;

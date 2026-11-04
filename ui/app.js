@@ -13,6 +13,25 @@ const textBlock=t=>`<div class="text">${esc(t)}</div>`;
 const image=(ref,cls,alt)=>/^\/(?:art\/[a-z-]+\.jpg|media\/[a-f0-9]{32})$/.test(ref||"")?`<img class="${cls}" alt="${esc(alt)}" src="${esc(ref)}">`:`<div class="placeholder ${cls}">No preview</div>`;
 function bind(fn){actions.push(fn);return actions.length-1}
 const btn=(label,fn,cls="")=>`<button type="button" class="${cls}" data-a="${bind(fn)}">${esc(label)}</button>`;
+const aiBtn=(label,fn,cls="")=>btn(label,fn,"ai-action "+cls);
+const traceLabel="Trace screenshot to exact project file";
+function projectTrace(p){
+ const counts=new Map();
+ for(const v of p.revisions)counts.set(v.record,(counts.get(v.record)||0)+(v.preview?1:0));
+ const selected=p.records.find(r=>counts.get(r.id)>0)?.id||p.records[0]?.id;
+ const options=p.records.map(r=>{
+   const n=counts.get(r.id),status=n?`${n} preview${n===1?"":"s"}`:n===0?"Add a preview":"Add a file";
+   return opt(r.id,r.name+" · "+status,selected)
+ }).join("");
+ const launch=()=>{
+   const asset=find(p.records,$("#traceAsset")?.value);
+   if(!asset){recordForm();return}
+   openRecord(asset.id,"History");
+   traceScreenshot(asset,p.revisions.filter(v=>v.record===asset.id),p.id==="canopy"&&asset.id==="bird")
+ };
+ return `<section class="project-trace"><div><small class="eyebrow">Meta vision · SAM + Muse Spark</small><h2>Screenshot trace</h2><p>${options?"Choose an asset to match a playtest screenshot against its file previews.":"Add your first asset and a file preview to start matching screenshots."}</p></div>${options?`<label>Asset <select id="traceAsset">${options}</select></label>`:""}${btn(traceLabel,launch,"vision-launch")}</section>`
+}
+
 const opt=(val,label,sel)=>`<option value="${esc(val)}" ${val===sel?"selected":""}>${esc(label)}</option>`;
 const opts=(arr,sel)=>arr.map(x=>opt(x.id,x.name,sel)).join("");
 const head=(crumb,title,buttons="")=>`<div class="eyebrow">${esc(crumb)}</div><div class="top"><h1>${esc(title)}</h1><div class="actions">${buttons}</div></div>`;
@@ -100,7 +119,7 @@ function home(){
  ["Try a mechanic","Open Patrol & detection and follow its Canopy sentry reference.",()=>{locationState.project="canopy";openRecord("patrol")}]
  ].filter((task,index)=>[p.revisions.some(v=>v.id==="l72"),["l71","l72"].every(id=>find(p.revisions,id)),!!find(p.records,"capsule"),true,!!find(data.projects,"canopy")?.records.some(r=>r.id==="patrol")][index]);
  main.innerHTML=head(p.name,"Asset library",btn("Project settings",()=>projectOptions(p))+btn("+ Root class",()=>classForm())+btn("+ Add asset",()=>recordForm(),"primary"))+
- `<div class="library-caption"><span>${p.records.length} assets & records</span><span>${p.revisions.length} revision entries</span><span>${p.tools.length} tools</span></div><div class="asset-table"><div class="asset-line asset-columns"><span>Asset</span><span>Software</span><span>History</span></div>${classLibrary(p,r=>{const revs=p.revisions.filter(v=>v.record===r.id),tools=[...new Set(revs.map(v=>toolName(v.tool)))];return `<button class="asset-line" data-a="${bind(()=>openRecord(r.id))}"><span class="asset-cell">${r.cover?image(r.cover,"asset-thumb",r.name):`<i class="asset-thumb">${esc(r.emoji||"◇")}</i>`}<span><b>${esc(r.name)}</b><small>${esc(classPath(r.cls)||find(p.sections,r.section)?.name)}</small></span></span><span class="asset-tools">${tools.map(n=>`<span title="${esc(n)}">${toolIcon(n)}</span>`).join("")||"—"}</span><span>${revs.length?new Set(revs.map(branchKey)).size+" branches":"Open record"} ↗</span></button>`})||empty("Add your first asset to start its history.")}</div>`+
+ projectTrace(p)+`<div class="library-caption"><span>${p.records.length} assets & records</span><span>${p.revisions.length} revision entries</span><span>${p.tools.length} tools</span></div><div class="asset-table"><div class="asset-line asset-columns"><span>Asset</span><span>Software</span><span>History</span></div>${classLibrary(p,r=>{const revs=p.revisions.filter(v=>v.record===r.id),tools=[...new Set(revs.map(v=>toolName(v.tool)))];return `<button class="asset-line" data-a="${bind(()=>openRecord(r.id))}"><span class="asset-cell">${r.cover?image(r.cover,"asset-thumb",r.name):`<i class="asset-thumb">${esc(r.emoji||"◇")}</i>`}<span><b>${esc(r.name)}</b><small>${esc(classPath(r.cls)||find(p.sections,r.section)?.name)}</small></span></span><span class="asset-tools">${tools.map(n=>`<span title="${esc(n)}">${toolIcon(n)}</span>`).join("")||"—"}</span><span>${revs.length?new Set(revs.map(branchKey)).size+" branches":"Open record"} ↗</span></button>`})||empty("Add your first asset to start its history.")}</div>`+
  `<details class="library-guide"><summary>Project guide</summary>${btn("Practice the basics",startPractice)}${p.id==="canopy"&&find(p.records,"bird")?btn("Trace the example playtest frame",()=>{openRecord("bird","History");traceScreenshot(record(),p.revisions.filter(v=>v.record==="bird"),true)}):""}${demo?guide.map(([name,desc,fn])=>`<div class="row"><div class="grow"><b>${esc(name)}</b><p>${esc(desc)}</p></div>${btn("Open →",fn)}</div>`).join(""):""}</details>`;
 }
 function sectionNavigation(p,s){
@@ -121,7 +140,7 @@ function disciplineSettings(p){
  const active=activeDisciplines(p);
  return `<fieldset class="discipline-settings"><legend>Project disciplines</legend><p>Pick the work you handle. Expand a discipline to choose its software.</p>${setupStages.map(([stage,,catalog],i)=>{
    const name=categoryLabels[i],enabled=active.includes(name),chosen=disciplineTools(p,i);
-   const tools=[...new Set([...catalog.map(([n])=>p.tools.find(t=>t.name.toLowerCase()===n.toLowerCase())?.name||n),...p.tools.map(t=>t.name)])];
+   const tools=[...new Set([...catalog.map(([n])=>p.tools.find(t=>t.name.toLowerCase()===n.toLowerCase())?.name||n),...chosen])];
    return `<div class="discipline-item"><label class="discipline-choice"><input type="checkbox" data-stage="${i}" ${enabled?"checked":""}><strong>${esc(name)}</strong></label><details ${enabled?"":"hidden"}><summary>Software <span>${chosen.length}</span></summary><div class="discipline-tools">${tools.map(n=>`<label><input type="checkbox" value="${esc(n)}" ${chosen.includes(n)?"checked":""}>${toolIcon(n)} ${esc(n)}</label>`).join("")}</div></details></div>`
  }).join("")}</fieldset>`
 }
@@ -208,7 +227,7 @@ function safeLink(url){
 function sourceForm(r,src){
  const kinds=["Documentation","AI conversation","Playtest","Artist note","Publishing"];
  modal(src?"Edit source":"Attach a source",input("name","Source title",src?.name,"text",true)+select("sourceKind","Source type",kinds.map(k=>opt(k,k,src?.kind)).join(""))+input("url","Link (optional)",src?.url,"url")+area("excerpt","Original excerpt",src?.excerpt)+
- `<small>Draft sends only this excerpt to Meta.</small><div>`+btn("Draft decision with Meta",async()=>{const excerpt=need("excerpt");if(!hasKey)throw Error("Connect Meta AI first, or write the decision yourself.");const res=await post("ai",{project:project().id,mode:"capture",excerpt});if(dialog.open&&$("#decision")&&val("excerpt")===excerpt)$("#decision").value=res.text})+"</div>"+area("decision","Decision or next check · review before saving",src?.note),async()=>{
+ `<small>Draft sends only this excerpt to Meta.</small><div>`+aiBtn("Draft decision with Meta",async()=>{const excerpt=need("excerpt");if(!hasKey)throw Error("Connect Meta AI first, or write the decision yourself.");const res=await post("ai",{project:project().id,mode:"capture",excerpt});if(dialog.open&&$("#decision")&&val("excerpt")===excerpt)$("#decision").value=res.text})+"</div>"+area("decision","Decision or next check · review before saving",src?.note),async()=>{
  const item={id:src?.id||id(),name:need("name"),kind:val("sourceKind"),url:val("url"),excerpt:need("excerpt"),note:val("decision")};
  if(item.url&&!safeLink(item.url))throw Error("Use an http or https source link.");
  await change(p=>{const rec=find(p.records,r.id);rec.sources=rec.sources||[];if(src)Object.assign(find(rec.sources,src.id),item);else rec.sources.push(item)});render()
@@ -315,7 +334,7 @@ function compareView(out,revs){
  }
  const saved=b.comparisons.find(c=>c.before===a.id);
  const review=visualReview(out,a,b,saved?.visual);
- out.insertAdjacentHTML("beforeend",`<div class="panel"><div class="spread"><h2>Visible change</h2><span class="chip">Muse Spark · two previews</span></div><p class="sub">Generate sends only these two previews to Meta. Review the draft before saving.</p><div class="actions">${btn("Generate AI draft",async()=>{if(!hasKey){keyForm();return}if(!a.preview||!b.preview||a.id===b.id)throw Error("Choose two different revisions with previews.");const result=await post("ai",{project:project().id,mode:"compare",before:a.id,after:b.id});if(!$("#diff")||pairStamp!==stamp||locationState.tab!=="Compare")return;draft=result.text;$("#diff").value=draft;toast("Draft ready to review.")},"primary")}</div><label for="diff">Comparison note · ${esc(fileName(a)||revisionLabel(a))} → ${esc(fileName(b)||revisionLabel(b))}</label><textarea id="diff">${esc(draft||saved?.text||"")}</textarea>${btn("Save comparison",async()=>{const val=$("#diff").value.trim();if(!val||a.id===b.id)throw Error("Choose different revisions and enter a comparison.");await change(p=>{const v=find(p.revisions,b.id);v.comparisons=v.comparisons.filter(c=>c.before!==a.id);v.comparisons.push({before:a.id,text:val,...(review.current?{visual:review.current}:{})})});draft="";render();toast("Comparison saved.")})}</div>`);
+ out.insertAdjacentHTML("beforeend",`<div class="panel"><div class="spread"><h2>Visible change</h2><span class="chip">Muse Spark · two previews</span></div><p class="sub">Generate sends only these two previews to Meta. Review the draft before saving.</p><div class="actions">${aiBtn("Generate AI draft",async()=>{if(!hasKey){keyForm();return}if(!a.preview||!b.preview||a.id===b.id)throw Error("Choose two different revisions with previews.");const result=await post("ai",{project:project().id,mode:"compare",before:a.id,after:b.id});if(!$("#diff")||pairStamp!==stamp||locationState.tab!=="Compare")return;draft=result.text;$("#diff").value=draft;toast("Draft ready to review.")},"primary")}</div><label for="diff">Comparison note · ${esc(fileName(a)||revisionLabel(a))} → ${esc(fileName(b)||revisionLabel(b))}</label><textarea id="diff">${esc(draft||saved?.text||"")}</textarea>${btn("Save comparison",async()=>{const val=$("#diff").value.trim();if(!val||a.id===b.id)throw Error("Choose different revisions and enter a comparison.");await change(p=>{const v=find(p.revisions,b.id);v.comparisons=v.comparisons.filter(c=>c.before!==a.id);v.comparisons.push({before:a.id,text:val,...(review.current?{visual:review.current}:{})})});draft="";render();toast("Comparison saved.")})}</div>`);
 }
 const watchKey=(p,t)=>"gdb.watch."+p.id+"."+t.id;
 const watching=(p,t)=>localStorage.getItem(watchKey(p,t))==="on";
@@ -341,7 +360,7 @@ function software(){
  main.innerHTML+=`<div class="bar">${p.tools.map(x=>toolButton(x.name,()=>go("software",{tool:x.id}),x.id===t.id?"chosen":"")).join("")}</div><div class="panel"><div class="spread"><div class="eyebrow">Registered software</div>${btn("Edit software",()=>toolForm(t))}</div><h2>${toolIcon(t.name)} ${esc(t.name)}</h2><p class="sub">${esc(t.extensions)}</p>${(t.installFolders||[]).map(f=>`<div class="row"><small>Install</small>${btn(f,()=>post("open-folder",{project:p.id,tool:t.id,path:f}),"path file-link")}</div>`).join("")}${t.folders.map(f=>`<div class="row">${btn(f,()=>post("open-folder",{project:p.id,tool:t.id,path:f}),"grow path file-link")}<small>${esc(t.folderFormats?.[pathKey(f)]?.join(", ")||t.extensions)}</small>${btn("File types",()=>folderIntake(t))}${btn("Unlink folder",async()=>{await change(p=>{const x=find(p.tools,t.id);x.folders=x.folders.filter(v=>v!==f);if(x.folderFormats)delete x.folderFormats[pathKey(f)]});render()})}</div>`).join("")}<div class="actions">${btn("+ Link folder",async()=>{const {path}=await post("pick",{kind:"folder"});if(!path)return;folderIntake(t,path)})}${t.folders.length?btn("Organize folder assets",()=>folderIntake(t))+btn("Scan folders",async()=>{const res=await post("scan",{project:p.id,tool:t.id});if(scanSignature!==sig||locationState.view!=="software")return;candidates=res.files;scanIssues=res.issues;render();toast(`${candidates.length} files found.`)},"primary")+btn(watching(p,t)?"Auto-scan on":"Auto-scan off",()=>{localStorage.setItem(watchKey(p,t),watching(p,t)?"off":"on");render();if(watching(p,t))pollFolders()}):""}</div></div>
  <div class="panel"><div class="spread"><h2>Tracked files & revisions</h2>${btn("+ Track file",async()=>{const {path}=await post("pick",{kind:"file",software:t.name});if(path)singleIntake(t,path)})}</div>${tracked.map(v=>`<div class="row"><div class="grow">${v.path?btn(v.path.split(/[\\/]/).at(-1),()=>openFile(v,false),"file-link"):esc(revisionLabel(v))}<p>${esc(v.note)}</p><small>${esc(recordName(v.record))}</small></div>${btn("View revision →",()=>openRecord(v.record,"History",{revision:v.id}))}</div>`).join("")||empty("Track a file to link it to a record.")}</div>
  <div class="panel"><h2>Discovered files</h2><p class="sub">Scan linked folders for new files. Choose the record and parent when you track one.</p>${scanIssues.map(e=>`<p class="error">${esc(e)}</p>`).join("")}${unlinked.length?`<label for="filterFiles">Filter ${unlinked.length} paths</label><input id="filterFiles" placeholder="Filename or folder"><div id="discovered"></div>`:""}</div>`;
- if(unlinked.length){const results=()=>{const q=$("#filterFiles").value.toLowerCase(),files=unlinked.filter(f=>f.toLowerCase().includes(q));$("#discovered").innerHTML=files.slice(0,100).map(f=>`<div class="row"><div class="grow"><b>${esc(f.split(/[\\/]/).at(-1))}</b><div class="path">${esc(f)}</div></div>${btn("Suggest record",()=>matchFile(t,f))}${btn("Track file",()=>singleIntake(t,f))}</div>`).join("")+(files.length>100?empty("Showing 100. Filter to narrow the list."):"")};$("#filterFiles").oninput=results;results()}
+ if(unlinked.length){const results=()=>{const q=$("#filterFiles").value.toLowerCase(),files=unlinked.filter(f=>f.toLowerCase().includes(q));$("#discovered").innerHTML=files.slice(0,100).map(f=>`<div class="row"><div class="grow"><b>${esc(f.split(/[\\/]/).at(-1))}</b><div class="path">${esc(f)}</div></div>${aiBtn("Suggest record",()=>matchFile(t,f))}${btn("Track file",()=>singleIntake(t,f))}</div>`).join("")+(files.length>100?empty("Showing 100. Filter to narrow the list."):"")};$("#filterFiles").oninput=results;results()}
 }
 async function matchFile(tool,path){
  if(!hasKey){keyForm();return}
@@ -368,7 +387,7 @@ function searchView(){
 }
 function askView(){
  const p=project();
- main.innerHTML=head(p.name,"Ask this project")+`<div class="panel"><span class="chip">Meta · Muse Spark</span><h2 class="bar">Pick up where you left off</h2><p>Ask about an experiment, source revision, or decision. This sends the project’s record text, references, and revision notes to Meta.</p><label for="question">Question</label><textarea id="question" placeholder="Which mesh was used for the first texture pass?"></textarea>${btn("Ask Muse Spark",async()=>{if(!hasKey){keyForm();return}const q=$("#question").value.trim();if(!q)throw Error("Enter a question.");const res=await post("ai",{project:p.id,mode:"recall",question:q});if(project().id===p.id&&locationState.view==="ask")$("#answer").textContent=res.text},"primary")}<div class="text panel" id="answer" role="status">Your answer appears here.</div></div>`;
+ main.innerHTML=head(p.name,"Ask this project")+`<div class="panel"><span class="chip">Meta · Muse Spark</span><h2 class="bar">Pick up where you left off</h2><p>Ask about an experiment, source revision, or decision. This sends the project’s record text, references, and revision notes to Meta.</p><label for="question">Question</label><textarea id="question" placeholder="Which mesh was used for the first texture pass?"></textarea>${aiBtn("Ask Muse Spark",async()=>{if(!hasKey){keyForm();return}const q=$("#question").value.trim();if(!q)throw Error("Enter a question.");const res=await post("ai",{project:p.id,mode:"recall",question:q});if(project().id===p.id&&locationState.view==="ask")$("#answer").textContent=res.text},"primary")}<div class="text panel" id="answer" role="status">Your answer appears here.</div></div>`;
 }
 function modal(title,html,submit,label="Save"){
  activeDrawer=title;$("#dialogTitle").textContent=title;$("#fields").innerHTML=html;$("#formError").textContent="";$("#submit").textContent=label;formAction=submit;
@@ -389,6 +408,7 @@ function imageDestination(target=document.activeElement){
  if(!scope.contains(target))target=scope;
  const field=target.closest("[data-image-target]")||target.closest(".series-card")?.querySelector("[data-image-target]");
  if(field)return field;
+ if(scope.querySelector("#tracePane"))return target.closest(".trace-reference")?.querySelector(".image-field")||scope.querySelector(".trace-source .image-field");
  const fields=scope.querySelectorAll("[data-image-target]");
  if(fields.length===1)return fields[0];
  if(!dialog.open&&!target.closest("input,textarea,[contenteditable=true],#quickNote"))return scope.querySelector("[data-paste-node]");

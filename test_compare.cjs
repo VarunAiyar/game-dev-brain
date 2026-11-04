@@ -205,7 +205,7 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await ev("[...document.querySelectorAll('button')].find(b=>b.textContent==='Save comparison').click()");
   await until(()=>ev("!!find(project().revisions,'blend-final').comparisons[0]?.visual"),"saved visual findings");
   await open("History");
-  await ev("[...document.querySelectorAll('button')].find(b=>b.textContent==='Trace screenshot').click()");
+  await ev("[...document.querySelectorAll('button')].find(b=>b.textContent==='Trace screenshot to exact project file').click()");
   await ev(`(async()=>{const file=new File([await (await fetch('/art/lantern-wide.jpg')).blob()],'engine.jpg',{type:'image/jpeg'});await assignScreenshot($('#tracePane [data-image-target]'),file)})()`);
   await until(()=>ev("!document.querySelector('.trace-crop').hidden"),"pasteable trace screenshot");
   await mouse(".trace-crop canvas");
@@ -285,5 +285,55 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await until(()=>ev("document.querySelector('.checkpoint-panel')?.textContent.includes('First viewport captured')"),"checkpoint inspector");
   assert.equal(await ev("document.querySelector('#inlineNote').value"),"");
   assert.ok(await ev("document.querySelector('.checkpoint-figure img').naturalWidth>0"));
+
+  await ev(`change((p,state)=>state.projects.push({id:"trace-test",name:"Mechs",sections:p.sections,classes:[],records:[],tools:p.tools,revisions:[]}))`);
+  await ev("locationState={project:'trace-test',view:'home'};render()");
+  const traceButton=".project-trace .vision-launch";
+  assert.equal(await ev(`$('${traceButton}').textContent`),"Trace screenshot to exact project file");
+  await mouse(traceButton);
+  assert.equal(await ev("$('#dialogTitle').textContent"),"Add record");
+  await mouse("#cancel");
+  await ev(`change(p=>{
+    const asset={id:"rig",name:"Patapim",section:p.sections[0].id,cls:"",links:[],values:{}};
+    p.records.push(asset,{...asset,id:"prop",name:"Pen"});
+    p.revisions.push({id:"rig-v9",record:"rig",tool:p.tools[0].id,path:"D:/test/Patapim_v9.blend",label:"v9",branch:"Rigging",parent:"",preview:"",note:"",comparisons:[]})
+  }).then(render)`);
+  assert.deepEqual(await ev("[...$('#traceAsset').options].map(o=>o.textContent)"),["Patapim · Add a preview","Pen · Add a file"]);
+  await ev("$('#traceAsset').value='prop'");
+  await mouse(traceButton);
+  assert.equal(await ev("$('#dialogTitle').textContent"),"Track a revision");
+  await mouse("#cancel");
+  await ev("go('home');$('#traceAsset').value='rig'");
+  await mouse(traceButton);
+  assert.equal(await ev("$('#traceRevision').selectedOptions[0].textContent"),"D:/test/Patapim_v9.blend");
+  await ev(`(async()=>{const file=new File([await (await fetch('/art/lantern-wide.jpg')).blob()],'rig.jpg',{type:'image/jpeg'});
+    await assignScreenshot($('#traceReference').closest('.image-field'),file);$('#tracePane [data-save-reference]').click()})()`);
+  await until(()=>ev("!!$('#tracePane .trace-candidate input:checked')"),"saved first file preview, ready for matching");
+  assert.equal(await ev("$('#tracePane .trace-candidate input:checked').value"),"rig-v9");
+  await mouse("#cancel");
+  await ev("go('home')");
+  assert.match(await ev("$('#traceAsset').selectedOptions[0].textContent"),/Patapim · 1 preview/);
+
+  await ev(`change(p=>{
+    p.tools.push({id:"effect-tool",name:"Studio FX",extensions:".fx",folders:[]},
+      {id:"wiki",name:"Notion",extensions:".md",folders:[]});
+    p.disciplines=["VFX & simulation","Terrain & foliage"];
+    p.workflow=[{stage:"VFX & simulation",tool:"effect-tool",section:ensureSection(p,"VFX & simulation").id}];
+  }).then(()=>projectOptions(project()))`);
+  const disciplineChoices=name=>ev(`(()=>{
+    const row=[...document.querySelectorAll('.discipline-item')].find(el=>el.querySelector('strong').textContent===${JSON.stringify(name)});
+    return [...row.querySelectorAll('.discipline-tools input')].map(el=>[el.value,el.checked])
+  })()`);
+  const vfx=new Map(await disciplineChoices("VFX & simulation")),terrain=new Map(await disciplineChoices("Terrain & foliage"));
+  assert.equal(vfx.get("Studio FX"),true);
+  assert.ok(vfx.has("Houdini")&&terrain.has("Houdini"));
+  assert.ok(vfx.has("JangaFX EmberGen")&&!terrain.has("JangaFX EmberGen"));
+  assert.ok(terrain.has("Gaea")&&!vfx.has("Gaea"));
+  assert.ok(!terrain.has("Studio FX")&&!terrain.has("Notion")&&!vfx.has("Notion"));
+  assert.ok(new Map(await disciplineChoices("Design")).has("Notion"));
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && !busy"),"saved discipline settings");
+  await ev("projectOptions(project())");
+  assert.equal(new Map(await disciplineChoices("VFX & simulation")).get("Studio FX"),true);
 
 });

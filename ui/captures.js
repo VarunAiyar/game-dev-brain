@@ -37,7 +37,7 @@ function showCapture(parent,v,compact=false){
        }
        if(res.warning){const warn=document.createElement("small");warn.textContent=res.warning;body.append(warn)}
        if(["baseline","offline","error","interrupted"].includes(res.status)||res.warning){
-         const retry=document.createElement("button");retry.textContent="Analyze again";retry.onclick=async()=>{if(!hasKey){keyForm();return}retry.disabled=true;try{await post("checkpoint",{mode:"retry",id:cp.id});show()}catch(err){retry.disabled=false;toast(err.message)}};body.append(retry)
+         const retry=document.createElement("button");retry.className="ai-action";retry.textContent="Analyze again";retry.onclick=async()=>{if(!hasKey){keyForm();return}retry.disabled=true;try{await post("checkpoint",{mode:"retry",id:cp.id});show()}catch(err){retry.disabled=false;toast(err.message)}};body.append(retry)
        }
      }
      if(res.status==="pending")setTimeout(()=>{if(box.isConnected&&seq===sequence)show()},1700)

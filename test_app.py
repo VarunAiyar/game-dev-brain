@@ -117,6 +117,9 @@ class BrainTest(unittest.TestCase):
         self.assertEqual(req.get_header("Authorization"), "Bearer test-key")
         body = json.loads(req.data)
         self.assertEqual(body["model"], "muse-spark-1.3")
+        if mode in ("compare","trace","highlight"):
+            self.assertEqual(body["reasoning"]["effort"],"low")
+            self.assertGreater(body["max_output_tokens"],900)
         if mode in ("trace","highlight"):
             fmt=body["text"]["format"]
             self.assertEqual((fmt["name"],fmt["type"],fmt["strict"]),(mode,"json_schema",True))
@@ -130,6 +133,12 @@ class BrainTest(unittest.TestCase):
             self.assertEqual(base64.b64decode(block["image_url"].split(",")[1]), app.preview_bytes("/art/"+name+".jpg"))
         with self.assertRaises(app.Problem):
             app.ai(self.p, dict(mode="compare", before="l71", after="l71"))
+
+    def test_incomplete_comparison_is_not_a_draft(self):
+        reply={"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}
+        with patch("urllib.request.urlopen",return_value=io.BytesIO(json.dumps(reply).encode())):
+            with self.assertRaisesRegex(app.Problem,"token limit"):
+                app.ai(self.p,dict(mode="compare",before="l71",after="l72"))
 
     def test_visual_markers_validate_regions_and_preserve_source_pair(self):
         row=dict(part="Handle",detail="Handle bows outward.",before=[100,50,800,900],after=[60,52,900,902])
