@@ -1,0 +1,68 @@
+ableton https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/ableton.png
+affinity https://icons.duckduckgo.com/ip3/affinity.serif.com.ico
+aftereffects https://img.icons8.com/color/96/adobe-after-effects.png
+armor https://icons.duckduckgo.com/ip3/armorpaint.org.ico
+aseprite https://icons.duckduckgo.com/ip3/aseprite.org.ico
+audacity https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/audacity.png
+blender https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/blender.png
+blockbench https://icons.duckduckgo.com/ip3/blockbench.net.ico
+canva https://img.icons8.com/color/96/canva.png
+capcut https://icons.duckduckgo.com/ip3/capcut.com.ico
+cascadeur https://icons.duckduckgo.com/ip3/cascadeur.com.ico
+chatgpt https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/chatgpt.png
+claude https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/claude-ai.png
+clip https://icons.duckduckgo.com/ip3/clipstudio.net.ico
+codex https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/codex.png
+designer Installed Adobe product icon
+docs https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/google-docs.png
+figma https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/figma.png
+finalcut https://img.icons8.com/color/96/final-cut-pro-x.png
+flstudio https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/fl-studio.png
+fmod https://icons.duckduckgo.com/ip3/fmod.com.ico
+fortnite https://img.icons8.com/color/96/fortnite.png
+gamemaker https://icons.duckduckgo.com/ip3/gamemaker.io.ico
+godot https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/godot.png
+houdini https://icons.duckduckgo.com/ip3/sidefx.com.ico
+illustrator https://img.icons8.com/color/96/adobe-illustrator.png
+itch https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/itch.png
+krita https://img.icons8.com/color/96/krita.png
+mari https://icons.duckduckgo.com/ip3/foundry.com.ico
+max https://img.icons8.com/color/96/autodesk-3ds-max.png
+maya https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/autodesk-maya.png
+meta https://img.icons8.com/color/96/meta.png
+miro https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/miro.png
+mixamo https://www.mixamo.com/favicon.ico
+notion https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/notion.png
+nvidia https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/nvidia.png
+obs https://img.icons8.com/color/96/obs-studio.png
+obsidian https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/obsidian.png
+painter Installed Adobe product icon
+photoshop https://img.icons8.com/color/96/adobe-photoshop.png
+premiere https://img.icons8.com/color/96/adobe-premiere-pro.png
+reaper https://icons.duckduckgo.com/ip3/reaper.fm.ico
+resolve https://img.icons8.com/color/96/davinci-resolve.png
+roblox https://img.icons8.com/color/96/roblox-studio.png
+sharex https://icons.duckduckgo.com/ip3/getsharex.com.ico
+spine https://icons.duckduckgo.com/ip3/esotericsoftware.com.ico
+steam https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/steam.png
+unity https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/unity.png
+unreal https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/unreal-engine.png
+wwise https://www.google.com/s2/favicons?domain=audiokinetic.com&sz=128
+xbox https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/xbox.png
+zbrush https://img.icons8.com/color/96/zbrush.png
+uefn Installed Unreal Editor for Fortnite application icon
+embergen, illugen, liquigen, toolbag, rizomuv, assetforge, mixer Installed Windows application icons
+geogen https://jangafx.com/media/images/logos/geogen.svg
+gaea https://docs.gaea.app/assets/img/Gaea-Icon-64.png
+cinema https://www.maxon.net/favicon.ico (publisher)
+rhino https://www.rhino3d.com/images/favicon.ico
+sketchup https://sketchup.trimble.com/favicon.ico
+threedcoat https://3dcoat.com/images/favicon.svg
+plasticity https://www.plasticity.xyz/shortcut.png
+marvelous https://www.marvelousdesigner.com/favicon.ico
+clo https://www.clo3d.com/favicon.ico
+lightwave https://lightwave3d.com/static/images/icon.png
+worldmachine https://www.world-machine.com/images/favicon192.png
+speedtree https://unity.com/favicon.ico (publisher)
+autodesk https://www.autodesk.com/favicon.ico (publisher)
+foundry https://www.foundry.com/favicon.ico (publisher)
