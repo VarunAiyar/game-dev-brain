@@ -8,7 +8,7 @@ def review(checkpoint,key,highlight,preview_bytes,meta_request,image_block):
     if not before:
         if not key:
             return {"status":"baseline","note":"First viewport captured. Future checkpoints can be compared with this one."}
-        prompt="Write one concise baseline note for this Blender checkpoint. Describe the visible asset and its current appearance. Do not infer what changed, artist intent or hidden properties."
+        prompt="Write a baseline note for this Blender checkpoint in at most two short sentences. Describe the visible asset and its current appearance. Ignore editor chrome. Do not infer what changed, artist intent or hidden properties."
         answer=meta_request([{"type":"input_text","text":prompt},image_block(preview_bytes(after))],key)
         return {"status":"done","note":answer["text"][:900],"changes":[]}
     if not key:

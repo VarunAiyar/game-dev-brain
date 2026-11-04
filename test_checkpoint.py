@@ -1,5 +1,7 @@
 import base64
 import importlib.util
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -56,6 +58,24 @@ class CaptureTest(unittest.TestCase):
         route=app.checkpoint_action({"mode":"route","path":str(path)})
         self.assertFalse(route["automatic"])
         self.assertEqual(len([c for c in route["choices"] if not c["record"]]),2)
+
+    def test_first_checkpoint_retries_token_exhaustion_without_recapturing(self):
+        saved=self.capture("Desk_v001.blend","f")
+        before=app.snapshot()
+        p=app.by_id(before["state"]["projects"],saved["project"])
+        cp=app.by_id(p["revisions"],saved["revision"])["checkpoints"][0]
+        truncated={"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}
+        complete={"status":"completed","output":[{"content":[{"type":"output_text","text":"A desk lamp with a curved shade."}]}]}
+        replies=[io.BytesIO(json.dumps(reply).encode()) for reply in (truncated,complete)]
+        with patch("urllib.request.urlopen",side_effect=replies) as transport:
+            app.capture_analysis(cp,"test-key")
+        requests=[json.loads(call.args[0].data) for call in transport.call_args_list]
+        self.assertEqual([r["max_output_tokens"] for r in requests],[4096,8192])
+        self.assertTrue(all(r["reasoning"]=={"effort":"low"} for r in requests))
+        self.assertEqual(requests[0]["input"],requests[1]["input"])
+        self.assertEqual(app.checkpoint_action({"mode":"result","id":saved["id"]}),
+                         {"status":"done","note":"A desk lamp with a curved shade.","changes":[]})
+        self.assertEqual(app.snapshot(),before)
 
     def test_different_file_can_join_preview_only_node_and_branch(self):
         path=self.root/"HighPolySculpt.blend";path.touch()

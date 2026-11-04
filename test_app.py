@@ -191,10 +191,41 @@ class BrainTest(unittest.TestCase):
             app.ai(self.p, dict(mode="compare", before="l71", after="l71"))
 
     def test_incomplete_comparison_is_not_a_draft(self):
-        reply={"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}
-        with patch("urllib.request.urlopen",return_value=io.BytesIO(json.dumps(reply).encode())):
+        reply={"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},
+               "output":[{"content":[{"type":"output_text","text":"Unfinished answer"}]}]}
+        responses=[io.BytesIO(json.dumps(reply).encode()) for _ in range(2)]
+        with patch("urllib.request.urlopen",side_effect=responses) as transport:
             with self.assertRaisesRegex(app.Problem,"token limit"):
                 app.ai(self.p,dict(mode="compare",before="l71",after="l72"))
+        self.assertEqual(transport.call_count,2)
+        self.assertEqual(app.snapshot()["version"],1)
+
+    def test_structured_review_retries_with_the_same_images_and_schema(self):
+        truncated={"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}
+        answer={"summary":"No visible change.","changes":[]}
+        complete={"status":"completed","output":[{"content":[{"type":"output_text","text":json.dumps(answer)}]}]}
+        responses=[io.BytesIO(json.dumps(reply).encode()) for reply in (truncated,complete)]
+        with patch("urllib.request.urlopen",side_effect=responses) as transport:
+            result=app.ai(self.p,dict(mode="highlight",before="l71",after="l72"))
+        self.assertEqual(result["summary"],answer["summary"])
+        first,second=[json.loads(call.args[0].data) for call in transport.call_args_list]
+        self.assertEqual(first["max_output_tokens"],4096)
+        self.assertEqual(second["max_output_tokens"],8192)
+        first["max_output_tokens"]=8192
+        self.assertEqual(first,second)
+
+    def test_other_failures_and_sam_are_not_retried(self):
+        for model,reason in ((app.MODEL,"content_filter"),("sam-3.1","max_output_tokens")):
+            with self.subTest(model=model,reason=reason):
+                reply={"status":"incomplete","incomplete_details":{"reason":reason},"output":[]}
+                with patch("urllib.request.urlopen",return_value=io.BytesIO(json.dumps(reply).encode())) as transport:
+                    with self.assertRaises(app.Problem):
+                        app.meta_request([{"type":"input_text","text":"Test"}],"test",model=model)
+                self.assertEqual(transport.call_count,1)
+                if model=="sam-3.1":
+                    request=json.loads(transport.call_args.args[0].data)
+                    self.assertNotIn("reasoning",request)
+                    self.assertNotIn("max_output_tokens",request)
 
     def test_visual_markers_validate_regions_and_preserve_source_pair(self):
         row=dict(part="Handle",detail="Handle bows outward.",before=[100,50,800,900],after=[60,52,900,902])
