@@ -6,9 +6,13 @@ Double-click **Start Game Dev's Best Friend.cmd**. The app opens in your browser
 
 1. Start the app on the same Windows PC as Blender and open **Open Project Library**. If the [local app](http://127.0.0.1:48731/) is already running on port 48731, use that instance.
 2. In Blender **4.2 or later**, open **Edit → Preferences → Add-ons → Install from Disk**. Select the [add-on file from this repository](blender/game_devs_best_friend.py), or download it from **History → Blender capture setup** in the app. Enable **Game Dev's Best Friend – Capture checkpoint**. If you installed the earlier **Game Dev Brain** add-on, disable that copy first.
-3. Save a file such as `Pen_v001.blend`. Hover over the **3D View** and press **Ctrl+Alt+Shift+C**. If Blender asks for a destination, choose your game. You can also use **View → Game Dev's Best Friend: Capture Checkpoint** in the viewport.
+3. Save a file such as `Pen_v001.blend`. Hover over the **3D View** and press **Ctrl+Alt+Shift+C**. For a new file, choose your **Project**, **Asset**, **Source node**, and **Branch**. You can also use **View → Game Dev's Best Friend: Capture Checkpoint** in the viewport.
 4. Look for **Captured** in Blender. Switch to the app and choose **Open checkpoint** in the notification, or open the asset’s **History**, select its Blender node, and look under **Blender checkpoints**.
 5. Edit the model and capture again. You should see two timestamped viewports on the same revision. To test a linked revision, use **Save As** to create `Pen_v002.blend` in the same folder and capture again. The graph should connect v001 to v002.
+
+For a blockout-to-high-poly workflow, choose the existing asset and its blockout as the **Source node**. Keep the branch name to continue it, or enter **High poly** to start an experiment from that node. The source can be a screenshot-only node, and the new Blender file can have a different name or live in another folder. Choose **Independent node** when the source is unknown. Choose **Create new asset** only when the file belongs to a separate asset. A file already tracked in Blender adds another checkpoint to its existing node.
+
+Update an older add-on by installing the current file from `blender/game_devs_best_friend.py` again and restarting Blender if it is still showing the old destination dialog.
 
 Local capture works without a Meta key. For automatic AI notes, connect your key in the app. To also see SAM outlines, run [Setup Blender Capture.cmd](Setup%20Blender%20Capture.cmd) once. It installs the pinned mask decoder beside the app using [requirements-capture.txt](requirements-capture.txt).
 
@@ -100,3 +104,5 @@ To run without opening a browser, use `python app.py --no-browser` and visit **h
 ## Tests
 
 Run `python -m unittest -q` for the backend and `node --test test_compare.cjs` for the comparison workflow. The browser test uses Node 22+, Python, and headless Edge with a temporary library and profile. Set `EDGE_PATH` if Edge is installed in a custom location.
+
+Run `blender --background --factory-startup --python-exit-code 1 --python blender/test_checkpoint_picker.py` to check the add-on's project, asset, source, and branch selectors using Blender's own property system. This test sends a mocked capture request. The viewport screenshot and physical shortcut need an interactive Blender check.

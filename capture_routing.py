@@ -34,15 +34,23 @@ def rank(label):
 def destinations(projects, path):
     key, folder = pathkey(path), pathkey(Path(path).parent)
     family, label = series(path)
-    exact, related, linked, fallback = [], [], [], []
+    exact, related, linked, fallback, existing = [], [], [], [], []
     for p in projects:
         tools = [t for t in p["tools"] if t["name"].casefold()=="blender"]
         records = {r["id"]:r for r in p["records"]}
-        def option(v=None):
-            name = records[v["record"]]["name"] if v else family
-            return {"project":p["id"], "source":v["id"] if v else "",
-                    "label":p["name"]+" / "+name+(" / "+v["branch"]+" / "+v["label"] if v else " (new asset)")}
+        def option(v=None, asset=None):
+            asset = records[v["record"]] if v else asset
+            name = asset["name"] if asset else family
+            filename = (Path(v["path"]).name or v.get("exampleFilename","")) if v else ""
+            source_label = " / ".join(filter(None, [v["branch"], filename, v["label"]])) if v else "Independent node"
+            return {"project":p["id"], "record":asset["id"] if asset else "", "source":v["id"] if v else "",
+                    "projectName":p["name"], "recordName":name, "sourceLabel":source_label,
+                    "branch":v["branch"] if v and v["tool"] in {t["id"] for t in tools} else "3D Modeling",
+                    "label":p["name"]+" / "+name+(" / "+source_label if asset else " (new asset)")}
         fallback.append(option())
+        for asset in p["records"]:
+            existing.append(option(asset=asset))
+        existing.extend(option(v) for v in p["revisions"])
         lanes = {}
         for v in p["revisions"]:
             src = v.get("path")
@@ -61,14 +69,19 @@ def destinations(projects, path):
             else:
                 # An older or same-numbered variant carries no evidence for a handoff.
                 anchor=versions[0]
-                branch=option(anchor)
-                branch.update(independent=True,label=p["name"]+" / "+records[anchor["record"]]["name"]+
+                branch=option(asset=records[anchor["record"]])
+                branch.update(independent=True,branch=anchor["branch"],label=p["name"]+" / "+records[anchor["record"]]["name"]+
                               " / "+anchor["branch"]+" (independent revision)")
                 related.append(branch)
         if any(key.startswith(pathkey(root)+"/") for t in tools for root in t.get("folders",[]) if root):
             linked.append(option())
-    choices=exact or related or linked or fallback
-    return list({(c["project"],c["source"]):c for c in choices}.values()),bool(exact or related or linked)
+    # An already tracked path keeps its identity. New paths can join any asset,
+    # including a manually created node that only has a screenshot.
+    choices=exact or (related + linked + existing + fallback)
+    unique={}
+    for choice in choices:
+        unique.setdefault((choice["project"],choice["record"],choice["source"]),choice)
+    return list(unique.values()),bool(exact)
 
 
 def attach(projects, target, path, checkpoint):
@@ -77,23 +90,22 @@ def attach(projects, target, path, checkpoint):
     v = source
     if source is None or pathkey(source["path"])!=pathkey(path):
         family,label=series(path)
-        if source:
-            owner,tid,branch=source["record"],source["tool"],source["branch"]
-            discipline=source.get("discipline") or branch
-        else:
-            t=next((t for t in p["tools"] if t["name"].casefold()=="blender"),None)
-            if not t:
-                t=tool(uid(),"Blender",".blend")
-                p["tools"].append(t)
-            discipline=t.get("task") or "3D Modeling"
+        t=next((t for t in p["tools"] if t["name"].casefold()=="blender"),None)
+        if not t:
+            t=tool(uid(),"Blender",".blend")
+            p["tools"].append(t)
+        discipline=(source.get("discipline") if source and source["tool"]==t["id"] else t.get("task")) or "3D Modeling"
+        branch=target.get("branch") or (source["branch"] if source else discipline)
+        owner=source["record"] if source else target.get("record")
+        if not owner:
             sec=next((s for s in p["sections"] if s["name"]==discipline),None)
             if not sec:
                 sec=section(uid(),discipline)
                 p["sections"].append(sec)
             asset=record(uid(),family,sec["id"],"")
             p["records"].append(asset)
-            owner,tid,branch=asset["id"],t["id"],discipline
-        v=rev(uid(),owner,tid,label,branch,source["id"] if source and not target.get("independent") else "","","")
+            owner=asset["id"]
+        v=rev(uid(),owner,t["id"],label,branch,source["id"] if source and not target.get("independent") else "","","")
         v.update(path=str(path),discipline=discipline)
         p["revisions"].append(v)
     previous="" if target.get("independent") else (source or {}).get("preview","")

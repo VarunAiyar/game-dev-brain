@@ -1,6 +1,6 @@
 """Game Dev's Best Friend viewport checkpoint. Install this file from Blender Preferences."""
 bl_info={"name":"Game Dev's Best Friend – Capture checkpoint","author":"Game Dev's Best Friend",
-         "version":(1,0,0),"blender":(4,2,0),"category":"3D View",
+         "version":(1,1,0),"blender":(4,2,0),"category":"3D View",
          "description":"Capture your saved .blend path and current viewport with Ctrl+Alt+Shift+C"}
 
 import base64
@@ -16,7 +16,7 @@ import bpy
 ORIGIN="http://127.0.0.1:48731"
 KEYMAPS=[]
 # Blender requires enum strings returned by callbacks to remain alive.
-OPTIONS=[]
+OPTIONS={"projects":[], "assets":{}, "sources":{}, "targets":[]}
 
 
 def request(route,body=None,token=None):
@@ -58,15 +58,70 @@ def viewport(context):
             bpy.data.images.remove(image)
 
 
-def choices(self,context):
-    return OPTIONS
+def project_choices(self,context):
+    return OPTIONS["projects"]
+
+
+def asset_choices(self,context):
+    return OPTIONS["assets"].get(self.project,[])
+
+
+def source_choices(self,context):
+    return OPTIONS["sources"].get((self.project,self.asset),[])
+
+
+def source_changed(self,context):
+    if self.destination:
+        self.branch=OPTIONS["targets"][int(self.destination)].get("branch","3D Modeling")
+
+
+def asset_changed(self,context):
+    items=source_choices(self,context)
+    if items:
+        self.destination=items[0][0]
+
+
+def project_changed(self,context):
+    items=asset_choices(self,context)
+    if items:
+        self.asset=items[0][0]
+
+
+def prepare_choices(self,targets):
+    OPTIONS["targets"]=targets
+    OPTIONS["projects"].clear()
+    OPTIONS["assets"].clear()
+    OPTIONS["sources"].clear()
+    for i,target in enumerate(targets):
+        project=target["project"]
+        asset=target["record"] or "__new__"
+        if project not in OPTIONS["assets"]:
+            OPTIONS["projects"].append((project,target["projectName"],""))
+            OPTIONS["assets"][project]=[]
+        if (project,asset) not in OPTIONS["sources"]:
+            name=target["recordName"] if target["record"] else "Create new asset · "+target["recordName"]
+            OPTIONS["assets"][project].append((asset,name,""))
+            OPTIONS["sources"][project,asset]=[]
+        OPTIONS["sources"][project,asset].append((str(i),target["sourceLabel"],target["label"]))
+    # Keep creating another asset an explicit choice at the end of each list.
+    for items in OPTIONS["assets"].values():
+        items.sort(key=lambda item:item[0]=="__new__")
+    preferred=targets[0]
+    self.project=preferred["project"]
+    if preferred["record"]:
+        self.asset=preferred["record"]
+        self.destination="0"
 
 
 class GDB_OT_checkpoint(bpy.types.Operator):
     bl_idname="gdb.capture_checkpoint"
     bl_label="Game Dev's Best Friend: Capture Checkpoint"
     bl_options={'INTERNAL'}
-    destination: bpy.props.EnumProperty(name="Destination",items=choices)
+    project: bpy.props.EnumProperty(name="Project",items=project_choices,update=project_changed)
+    asset: bpy.props.EnumProperty(name="Asset",items=asset_choices,update=asset_changed)
+    destination: bpy.props.EnumProperty(name="Source node",items=source_choices,update=source_changed)
+    branch: bpy.props.StringProperty(name="Branch",default="3D Modeling",maxlen=160,
+                                    description="Use the source node's branch, or name a new branch for this experiment")
 
     @classmethod
     def poll(cls,context):
@@ -89,16 +144,23 @@ class GDB_OT_checkpoint(bpy.types.Operator):
                               context=context.mode,dirty=dirty)
             if routes["automatic"]:
                 return self.store(self.targets[0])
-            OPTIONS[:]=[(str(i),t["label"],"") for i,t in enumerate(self.targets)]
-            self.destination="0"
-            return context.window_manager.invoke_props_dialog(self,width=470)
+            if any("record" not in target for target in self.targets):
+                raise RuntimeError("Restart Game Dev's Best Friend to load the updated destination picker.")
+            prepare_choices(self,self.targets)
+            return context.window_manager.invoke_props_dialog(self,width=570)
         except Exception as exc:
             self.report({'ERROR'},str(exc))
             return {'CANCELLED'}
 
     def draw(self,context):
-        self.layout.label(text="Choose where this viewport checkpoint belongs.")
-        self.layout.prop(self,"destination")
+        self.layout.label(text=Path(self.path).name,icon='FILE_BLEND')
+        self.layout.label(text="Add this file as a revision in an asset's history.")
+        self.layout.prop(self,"project")
+        self.layout.prop(self,"asset")
+        if self.asset!="__new__":
+            self.layout.prop(self,"destination")
+            self.layout.label(text="Choose the blockout or other version this file builds on.")
+        self.layout.prop(self,"branch")
 
     def execute(self,context):
         try:
@@ -108,7 +170,12 @@ class GDB_OT_checkpoint(bpy.types.Operator):
             return {'CANCELLED'}
 
     def store(self,target):
-        reply=request("/api/checkpoint",dict(self.payload,project=target["project"],source=target["source"]),self.token)
+        destination=dict(project=target["project"],source=target["source"])
+        if "record" in target:
+            destination["record"]=target["record"]
+        if self.branch.strip():
+            destination["branch"]=self.branch.strip()
+        reply=request("/api/checkpoint",dict(self.payload,**destination),self.token)
         self.report({'INFO'},"Captured · "+reply["label"]+" · Undo in Game Dev's Best Friend")
         return {'FINISHED'}
 

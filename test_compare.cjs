@@ -399,6 +399,22 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await until(()=>ev("document.querySelector('.checkpoint-panel')?.textContent.includes('First viewport captured')"),"checkpoint inspector");
   assert.equal(await ev("document.querySelector('#inlineNote').value"),"");
   assert.ok(await ev("document.querySelector('.checkpoint-figure img').naturalWidth>0"));
+  const assetCount=await ev("project().records.length");
+  const highPolyPath=path.join(temp,"CompletelyDifferentHighPoly.blend");
+  await fs.writeFile(highPolyPath,"fixture");
+  const highRoute=await capture({mode:"route",path:highPolyPath});
+  assert.equal(highRoute.automatic,false);
+  const highTarget=highRoute.choices.find(c=>c.project===captured.project && c.source===captured.revision);
+  assert.ok(highTarget);
+  const high=await capture({mode:"save",...highTarget,branch:"High poly",path:highPolyPath,id:"e".repeat(32),size:[640,480],jpeg});
+  assert.equal(high.record,captured.record);
+  await ev("refreshCaptureGraph()");
+  await until(()=>ev(`!!project().revisions.find(v=>v.id===${JSON.stringify(high.revision)})`),"new high-poly node arrives");
+  await ev(`openRecord(${JSON.stringify(high.record)},"History",{revision:${JSON.stringify(high.revision)}})`);
+  assert.equal(await ev("project().records.length"),assetCount);
+  assert.deepEqual(await ev(`(() => {const v=project().revisions.find(v=>v.id===${JSON.stringify(high.revision)});return [v.parent,v.branch,v.path]})()`),
+    [captured.revision,"High poly",highPolyPath]);
+  assert.ok(await ev(`!!document.querySelector('[data-revision="${high.revision}"]')`));
 
   await ev(`change((p,state)=>state.projects.push({id:"trace-test",name:"Mechs",sections:p.sections,classes:[],records:[],tools:p.tools,revisions:[]}))`);
   await ev("locationState={project:'trace-test',view:'home'};render()");

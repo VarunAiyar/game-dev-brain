@@ -23,7 +23,11 @@ class CaptureTest(unittest.TestCase):
     def capture(self,name,id,**kwargs):
         path=self.root/name;path.touch()
         route=app.checkpoint_action({"mode":"route","path":str(path)})
-        data=dict(mode="save",id=id*32,jpeg=self.image,size=[640,400],path=str(path),**route["choices"][0])
+        family=app.capture_routing.series(path)[0]
+        target=next((c for c in route["choices"] if c["source"] and c["recordName"]==family),None)
+        if target is None:
+            target=next(c for c in route["choices"] if not c["record"])
+        data=dict(mode="save",id=id*32,jpeg=self.image,size=[640,400],path=str(path),**target)
         return app.checkpoint_action(dict(data,**kwargs))
 
     def test_checkpoint_repeat_save_as_and_undo(self):
@@ -51,7 +55,55 @@ class CaptureTest(unittest.TestCase):
         app.commit(snap)
         route=app.checkpoint_action({"mode":"route","path":str(path)})
         self.assertFalse(route["automatic"])
-        self.assertEqual(len(route["choices"]),2)
+        self.assertEqual(len([c for c in route["choices"] if not c["record"]]),2)
+
+    def test_different_file_can_join_preview_only_node_and_branch(self):
+        path=self.root/"HighPolySculpt.blend";path.touch()
+        before=app.snapshot()
+        route=app.checkpoint_action({"mode":"route","path":str(path)})
+        self.assertFalse(route["automatic"])
+        choice=next(c for c in route["choices"] if c["project"]=="brine" and c["source"]=="l7")
+        body=dict(mode="save",id="d"*32,jpeg=self.image,size=[640,400],path=str(path),**choice)
+        body["branch"]="High poly"
+        result=app.checkpoint_action(body)
+        p=app.by_id(app.snapshot()["state"]["projects"],"brine")
+        v=app.by_id(p["revisions"],result["revision"])
+        self.assertEqual(len(p["records"]),len(before["state"]["projects"][0]["records"]))
+        self.assertEqual((v["record"],v["parent"],v["branch"],v["tool"]),("lamp","l7","High poly","bl"))
+        self.assertEqual(v["checkpoints"][0]["before"],app.by_id(p["revisions"],"l7")["preview"])
+        self.assertEqual(result,app.checkpoint_action(body))
+        repeated=app.checkpoint_action({"mode":"route","path":str(path)})
+        self.assertTrue(repeated["automatic"])
+        self.assertEqual(len(repeated["choices"]),1)
+        self.assertEqual(repeated["choices"][0]["source"],v["id"])
+        self.assertEqual(app.travel("undo",app.snapshot()["version"])["state"],before["state"])
+
+    def test_existing_empty_asset_and_cross_software_handoff(self):
+        for index,(record,source) in enumerate((("cleat",""),("lamp","paint"))):
+            path=self.root/f"Sculpt{index}.blend";path.touch()
+            route=app.checkpoint_action({"mode":"route","path":str(path)})
+            choice=next(c for c in route["choices"] if c["project"]=="brine" and c["record"]==record and c["source"]==source)
+            result=app.checkpoint_action(dict(mode="save",id=str(index)*32,jpeg=self.image,size=[640,400],path=str(path),**choice))
+            p=app.by_id(app.snapshot()["state"]["projects"],"brine")
+            v=app.by_id(p["revisions"],result["revision"])
+            self.assertEqual((v["record"],v["parent"],v["tool"],v["discipline"]),(record,source,"bl","3D Modeling"))
+
+    def test_deleted_or_mismatched_source_is_rejected(self):
+        path=self.root/"HighPoly.blend";path.touch()
+        route=app.checkpoint_action({"mode":"route","path":str(path)})
+        choice=next(c for c in route["choices"] if c["project"]=="brine" and c["source"]=="l7")
+        body=dict(mode="save",id="e"*32,jpeg=self.image,size=[640,400],path=str(path),**choice)
+        with self.assertRaises(app.Problem):
+            app.checkpoint_action(dict(body,record="cleat"))
+        snap=app.snapshot()
+        p=app.by_id(snap["state"]["projects"],"brine")
+        p["revisions"]=[v for v in p["revisions"] if v["id"]!="l7"]
+        for v in p["revisions"]:
+            if v["parent"]=="l7":
+                v["parent"]=""
+        app.commit(snap)
+        with self.assertRaises(app.Problem):
+            app.checkpoint_action(body)
 
     @unittest.skipUnless(importlib.util.find_spec("meta_sam_parser"),"install requirements-capture.txt to test SAM decoding")
     def test_model_note_and_actual_mask_decoder(self):

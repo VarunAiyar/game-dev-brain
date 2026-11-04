@@ -624,9 +624,15 @@ def checkpoint_action(data):
         row=conn.execute("SELECT receipt FROM capture_results WHERE id=?",(cid,)).fetchone()
         if row:
             return json.loads(row[0])
-    choice=next((c for c in choices if (c["project"],c["source"])==(data.get("project"),data.get("source"))),None)
+    choice=next((c for c in choices if (c["project"],c["source"])==(data.get("project"),data.get("source"))
+                 and c["record"]==data.get("record",c["record"] if c["source"] else "")),None)
     if not choice:
         raise Problem("The branch changed. Capture again to choose its current destination.",409)
+    branch=data.get("branch")
+    if branch is not None:
+        if not isinstance(branch,str) or not branch.strip() or len(branch.strip())>160:
+            raise Problem("Enter a branch name of up to 160 characters.")
+        choice=dict(choice,branch=branch.strip())
     size=data.get("size")
     if not isinstance(size,list) or len(size)!=2 or not all(type(n) is int and 0<n<=1280 for n in size):
         raise Problem("Invalid checkpoint dimensions.")

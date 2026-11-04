@@ -3,7 +3,7 @@ function captureGuide(){
  modal("Capture from Blender",`<p>Put a viewport screenshot on the revision it came from. Keep Game Dev's Best Friend running while you work.</p>
  <ol class="capture-steps">
  <li><strong>Install the add-on once</strong><p><a href="/addon/game_dev_brain.py" download="game_devs_best_friend.py">Download Blender add-on ↓</a></p><p>In Blender, choose Preferences → Add-ons → Install from Disk. Select the downloaded file and enable Game Dev's Best Friend.</p></li>
- <li><strong>Capture a saved .blend</strong><p>Hover over the 3D View and press <kbd>Ctrl + Alt + Shift + C</kbd>, or use View → Game Dev's Best Friend: Capture Checkpoint.</p></li>
+ <li><strong>Capture a saved .blend</strong><p>Hover over the 3D View and press <kbd>Ctrl + Alt + Shift + C</kbd>, or use View → Game Dev's Best Friend: Capture Checkpoint.</p><p>For a new file, choose your project and asset, then the source node it builds on. Keep the branch name or give your experiment a new one. A low-poly screenshot and a high-poly Blender file can share the same asset history.</p><p>Choose Create new asset when it belongs to a separate asset. Capturing an already tracked file adds a checkpoint to its existing node.</p></li>
  <li><strong>See what changed</strong><p>Capture again after an edit. Open the revision’s Blender checkpoints to see both viewports.</p></li></ol>
  <p class="sub">For AI notes, connect Meta AI. For outlines, run <b>Setup Blender Capture.cmd</b> once in the app folder. Analysis sends viewport images to Meta.</p>`,()=>{},"Done")
 }
