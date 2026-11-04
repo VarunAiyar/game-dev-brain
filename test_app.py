@@ -2,6 +2,7 @@
 import base64
 import io
 import json
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,61 @@ class BrainTest(unittest.TestCase):
         app.initialize()
         self.snap = app.snapshot()
         self.p = self.snap["state"]["projects"][0]
+
+    def test_guided_cases_upgrade_preserves_saved_work_and_undo(self):
+        # Simulate a pre-tour library with a comparison already saved by the artist.
+        legacy = self.snap["state"]
+        for project in legacy["projects"]:
+            project["records"] = [r for r in project["records"] if r["id"] not in ("ridge-raptor", "floodgate")]
+            project["revisions"] = [v for v in project["revisions"] if v["record"] not in ("ridge-raptor", "floodgate")]
+        bird = legacy["projects"][1]
+        app.by_id(bird["revisions"], "c2")["comparisons"].append({"before":"c1", "text":"Artist's comparison"})
+        legacy["projects"].append(dict(id="personal", name="My game", sections=[], records=[], revisions=[], classes=[], tools=[]))
+        with app.closing(app.db()) as conn, conn:
+            raw = json.dumps(legacy)
+            conn.execute("DELETE FROM upgrades WHERE name='guided-visual-examples-v1'")
+            conn.execute("UPDATE workspace SET body=?", (raw,))
+            conn.execute("INSERT INTO edits(direction,label,body) VALUES ('undo','artist edit',?)",(raw,))
+        app.initialize()
+        first = app.snapshot()
+        app.initialize()
+        self.assertEqual(app.snapshot(), first)
+        restored = app.travel("undo", first["version"])
+        for state in [first["state"], restored["state"]]:
+            app.validate(state)
+            brine, canopy, personal = state["projects"]
+            self.assertEqual(personal, legacy["projects"][2])
+            self.assertEqual(app.by_id(canopy["revisions"],"c2")["comparisons"], [{"before":"c1","text":"Artist's comparison"}])
+            self.assertEqual(app.by_id(brine["revisions"],"gate-lockdown")["parent"],"gate-blockout")
+            previews = [v["preview"] for v in canopy["revisions"] if v["record"]=="ridge-raptor"]
+            self.assertEqual(len(set(previews)),3)
+            for ref in previews+["/art/raptor-frame.jpg","/art/gate-blockout.jpg","/art/gate-lockdown.jpg"]:
+                self.assertTrue(app.preview_bytes(ref).startswith(b"\xff\xd8"))
+
+    def test_sample_names_upgrade_preserves_artist_edits_and_history(self):
+        revisions = self.p["revisions"]
+        for v in revisions:
+            v.pop("exampleFilename")
+        first = app.by_id(revisions,"l7")
+        first.update(label="v007",note="My note")
+        app.by_id(revisions,"l71")["label"] = "My experiment"
+        app.by_id(revisions,"l72").update(label="v007.2",path="D:/Work/custom.blend")
+        with app.closing(app.db()) as conn, conn:
+            raw = json.dumps(self.snap["state"])
+            conn.execute("DELETE FROM upgrades WHERE name='example-filenames-v1'")
+            conn.execute("UPDATE workspace SET body=?", (raw,))
+            conn.execute("INSERT INTO edits(direction,label,body) VALUES ('undo','artist edit',?)",(raw,))
+        app.initialize()
+        snap = app.snapshot()
+        app.initialize()
+        self.assertEqual(app.snapshot(),snap)
+        for result in (snap,app.travel("undo",snap["version"])):
+            nodes = result["state"]["projects"][0]["revisions"]
+            updated = app.by_id(nodes,"l7")
+            self.assertEqual((updated["exampleFilename"],updated["label"],updated["note"],updated["path"]),
+                             ("lantern_v001.blend","v001","My note",""))
+            for key in ("l71","l72"):
+                self.assertEqual(app.by_id(nodes,key),app.by_id(revisions,key))
 
     def test_save_conflict_and_invalid_parent(self):
         self.p["records"][0]["description"] = "Artist saved this."

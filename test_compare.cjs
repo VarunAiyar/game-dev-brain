@@ -45,7 +45,7 @@ async function devtools(url) {
 test("Graph selection, exact revision comparisons, visual review, screenshot tracing and native-format intake", {timeout:90000}, async t => {
   const browser = process.env.EDGE_PATH || path.join(process.env["ProgramFiles(x86)"] || "", "Microsoft/Edge/Application/msedge.exe");
   await fs.access(browser);
-  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "game-dev-brain-compare-"));
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "game-devs-best-friend-compare-"));
   const profile = path.join(temp, "edge");
   const serve = [
     "import app, sys",
@@ -65,12 +65,18 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
         if (edge.exitCode === null) edge.kill();
       }
       server.kill();
-      await fs.rm(temp, {recursive:true, force:true, maxRetries:8, retryDelay:200});
+      const resolvedTemp = await fs.realpath(temp);
+      const resolvedTempRoot = await fs.realpath(os.tmpdir());
+      if (path.dirname(resolvedTemp) !== resolvedTempRoot || !path.basename(resolvedTemp).startsWith("game-devs-best-friend-compare-")) throw Error("Unexpected temporary test directory");
+      await fs.rm(resolvedTemp, {recursive:true, force:true, maxRetries:8, retryDelay:200});
     }
   });
   const [port] = await once(server.stdout, "data");
   const url = "http://127.0.0.1:" + Number(port.toString().trim());
   const init = await (await fetch(url + "/api/state")).json();
+  const addon = await fetch(url + "/addon/game_dev_brain.py");
+  assert.equal(addon.status, 200);
+  assert.match(await addon.text(),/Game Dev's Best Friend/);
   const p = init.state.projects[0], asset = p.records[0];
   const headers = {"Content-Type":"application/json","X-Brain-Token":init.token};
   async function upload(filename) {
@@ -83,6 +89,7 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   function revision(id, filename, label, preview, note, parent = "", tool = "bl") {
     return {id, path:"D:/test/" + filename, record:asset.id, tool, label, preview, note, parent, branch:"Main", comparisons:[]};
   }
+  const demoGate=p.revisions.filter(v=>v.record==="floodgate");
   p.revisions = [
     revision("export-final", "Pen_Final.fbx", "Final", "", "Exported for engine", "export-start"),
     revision("blend-final", "Pen_Final.blend", "Final", finalImage, "Polished the cap", "blend-start"),
@@ -105,7 +112,14 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await ev(`localStorage.setItem(guideOnLaunch,"off"); openRecord(${JSON.stringify(asset.id)},"History")`);
 
   async function mouse(selector, button = "left", modifiers = 0) {
-    const point = await ev(`(() => {const el=document.querySelector(${JSON.stringify(selector)}); el.scrollIntoView({block:"nearest",inline:"nearest"});const b=el.getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2}})()`);
+    const point = await ev(`(async () => {
+      const el=document.querySelector(${JSON.stringify(selector)});
+      el.scrollIntoView({block:"nearest",inline:"nearest",behavior:"instant"});
+      // The floating guide repositions on the next frame after scrolling.
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      const b=el.getBoundingClientRect();
+      return {x:b.left+b.width/2,y:b.top+b.height/2};
+    })()`);
     for (const type of ["mousePressed","mouseReleased"]) {
       const buttons = type === "mouseReleased" ? 0 : button === "right" ? 2 : 1;
       await client.send("Input.dispatchMouseEvent", {type, button, buttons, modifiers, clickCount:1, ...point});
@@ -151,6 +165,12 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await mouse(node("Pen_Final.blend"), "left", 2);
   await mouse(node("Pen_Start.blend"), "left", 2);
   assert.deepEqual(await ev("locationState.compareSelection"), ["blend-final","blend-start"]);
+  assert.equal(await ev("document.querySelector('.compare-picked').hidden"),false);
+  await mouse(".compare-picked");
+  assert.deepEqual(await selected(), ["blend-final","blend-start"]);
+  await open("History");
+  await mouse(node("Pen_Final.blend"), "left", 2);
+  await mouse(node("Pen_Start.blend"), "left", 2);
   await mouse(node("Pen_Start.blend"), "right");
   assert.equal(await ev("document.querySelector('.compare-menu:popover-open button').textContent"), "Compare revisions");
   await mouse(".compare-menu button");
@@ -259,8 +279,16 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   assert.equal(await ev("toolName(project().revisions.find(v=>v.path.endsWith('.TERRAIN')).tool)"),"Gaea");
 
   await client.send("Page.navigate",{url:url+"/?demo=trace"});
+  await until(()=>ev("!!document.querySelector('.lab-coach.coach-intro')"),"trace introduction");
+  assert.equal(await ev("document.querySelector('.coach-count').textContent"),"Progress 1/5");
+  assert.match(await ev("document.querySelector('.lab-coach p').textContent"),/most recent changes/);
+  await mouse(".coach-next");
+  await until(()=>ev("document.querySelector('.tour-target')?.matches('.vision-launch')"),"trace graph guide");
+  assert.equal(await ev("document.querySelector('.coach-count').textContent"),"Progress 2/5");
+  await mouse(".tour-target");
   await until(()=>ev("document.querySelector('.trace-crop')?.hidden===false"),"example deep link");
-  assert.equal(await ev("record().id"),"bird");
+  assert.equal(await ev("record().id"),"ridge-raptor");
+  assert.equal(await ev("document.querySelector('.coach-count').textContent"),"Progress 3/5");
   assert.equal(await ev("location.search"),"");
   await mouse("[data-trace]");
   assert.equal(await ev("document.querySelector('.trace-key').open"),true);
@@ -268,6 +296,92 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await ev("document.querySelector('[data-key]').value='isolated-test-session-key';document.querySelector('[data-connect]').click()");
   await until(()=>ev("hasKey && document.querySelector('.trace-key').hidden"),"inline session connection");
   assert.equal(await ev("document.querySelector('.trace-crop').hidden"),false);
+  await ev(`const demoPost=post;post=async(route,body)=>route!=="ai"?demoPost(route,body):body.mode==="trace"?{status:"ambiguous",summary:"Two crests are plausible",matches:[],model:"test"}:{changes:[],summary:"No confident markers",beforePreview:find(project().revisions,body.before).preview,afterPreview:find(project().revisions,body.after).preview};`);
+  await mouse("[data-full]");
+  assert.equal(await ev("document.querySelector('.coach-count').textContent"),"Progress 4/5");
+  await mouse("[data-trace]");
+  await until(()=>ev("document.querySelector('.tour-target')?.matches('[data-keep-trace]')"),"trace save guide");
+  await mouse("[data-keep-trace]");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent.includes('Complete')"),"trace saved");
+  await mouse(".coach-close");
+  assert.equal(await ev("!!document.querySelector('.lab-coach')"),false);
+  await mouse("#submit");
+  await ev(`locationState.project='brine';change(p=>p.revisions.push(...${JSON.stringify(demoGate)})).then(()=>go('home'))`);
+  assert.equal(await ev("!!document.querySelector('.lab-feature,.lab-coach,.project-trace[open]')"),false);
+  await ev("localStorage.setItem(intakeSlot,JSON.stringify({...newIntake(),step:2,name:'Work in progress',project:'brine',stages:[3]}))");
+  await mouse("#rail .home-brand");
+  await until(()=>ev("!!document.querySelector('#gameName')"),"logo opens the first screen during an existing setup");
+  assert.equal(await ev("JSON.parse(localStorage.getItem(intakeSlot)).step"),2);
+  await mouse(".how-link");
+  await until(()=>ev("!!document.querySelector('.story-options')"),"help story");
+  assert.deepEqual(await ev("[...document.querySelectorAll('.story-options a')].map(a=>a.getAttribute('href'))"),["?demo=branches","?demo=trace","?demo=compare"]);
+  assert.equal(await ev("document.querySelector('.story-home').getAttribute('href')"),"?view=welcome");
+  assert.match(await ev("document.querySelector('.story-nav .home-brand').textContent"),/Game Dev's Best Friend/);
+  await ev("document.querySelector('.inline-scene .story-pair').closest('.story-chapter').scrollIntoView({block:'center'})");
+  await until(()=>ev("!!document.querySelector('.scene-layer.current .story-pair')"),"scroll advances the comparison illustration");
+  await ev("document.querySelector('.inline-scene .story-trace').closest('.story-chapter').scrollIntoView({block:'center'})");
+  await until(()=>ev("document.querySelector('.board-foot span').textContent==='05 / 05' && !!document.querySelector('.scene-layer.current .story-trace')"),"final screenshot trace chapter");
+  await mouse('.story-options a[href="?demo=branches"]');
+  await until(()=>ev("!!document.querySelector('.branch-choices')"),"branch learning choices");
+  assert.equal(await ev("document.querySelectorAll('.branch-choices section').length"),2);
+  await mouse(".branch-choices section:first-child button");
+  await until(()=>ev("locationState.view==='home' && !!document.querySelector('.lab-coach.coach-intro')"),"branch library introduction");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 1/8'"),"branch introduction");
+  await mouse(".coach-next");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 2/8' && !!document.querySelector('.root-class.tour-target')"),"class guidance");
+  assert.match(await ev("document.querySelector('.lab-coach p').textContent"),/NPCs/);
+  await mouse(".coach-next");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 3/8'"),"open example asset guide");
+  await mouse('[data-asset="lamp"]');
+  await until(()=>ev("!!document.querySelector('.graph-toolbar')"),"branch editor example");
+  assert.equal(await ev("record().id"),"lamp");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 4/8'"),"branch selection guide");
+  await mouse(".rev-card.selected .rev-face");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 5/8'"),"branch note guide");
+  await ev("document.querySelector('#inlineNote').value='A note from the walkthrough.'");
+  await mouse("#inlineNote + button");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 6/8'"),"branch fork guide");
+  await until(()=>ev("(()=>{const e=document.querySelector('.fork-from-here'),b=e.getBoundingClientRect();return document.elementFromPoint(b.left+b.width/2,b.top+b.height/2)===e})()"),"fork button visible");
+  await mouse(".fork-from-here");
+  await until(()=>ev("dialog.open && document.querySelector('.tour-target')?.id==='branch'"),"branch form guide");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && document.querySelector('.coach-count')?.textContent==='Progress 7/8'"),"branch connection guide");
+  const connection=await ev(`(() => {const point=el=>{const b=el.getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2}};return [point(visualTour.target),point(visualTour.extraTarget)]})()`);
+  await drag(connection[0],connection[1]);
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 8/8'"),"branch arrangement guide");
+  const selectedCard=await ev(`(() => {const b=document.querySelector('.rev-card.selected .rev-face').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2}})()`);
+  await drag(selectedCard,{x:selectedCard.x+40,y:selectedCard.y+25});
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent.includes('Complete')"),"branch walkthrough complete");
+  assert.deepEqual(await ev("[...document.querySelectorAll('.coach-finish a')].map(a=>a.getAttribute('href'))"),["?view=welcome&branchTour=own","?view=help#examples"]);
+  await mouse(".coach-next");
+  await ev("history.back()");
+  await until(()=>ev("!!document.querySelector('.story-options')"),"return to examples");
+  await mouse('.story-options a[href="?demo=trace"]');
+  await until(()=>ev("!!document.querySelector('.lab-coach.coach-intro')"),"screenshot trace introduction");
+  await mouse(".coach-next");
+  await until(()=>ev("!!document.querySelector('.tour-target.vision-launch')"),"screenshot trace example");
+  await ev("history.back()");
+  await until(()=>ev("!!document.querySelector('.story-options')"),"revisit examples");
+  await mouse('.story-options a[href="?demo=compare"]');
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent==='Progress 1/5'"),"comparison introduction");
+  await mouse(".coach-next");
+  await until(()=>ev("!!document.querySelector('.tour-target.tab-compare')"),"comparison example");
+  await ev(`const comparePost=post;post=async(route,body)=>route!=="ai"?comparePost(route,body):{changes:[],summary:"No confident markers",beforePreview:find(project().revisions,body.before).preview,afterPreview:find(project().revisions,body.after).preview}`);
+  await mouse(".tab-compare");
+  assert.deepEqual(await selected(),["gate-blockout","gate-lockdown"]);
+  await ev(`const workingDemoPost=post;post=async(route,body)=>{if(route==="ai"){post=workingDemoPost;throw Error("Try the review again.")}return workingDemoPost(route,body)}`);
+  await mouse("[data-highlight]");
+  await until(()=>ev("document.querySelector('[data-findings] .error')?.textContent.includes('again')"),"recoverable review failure");
+  assert.equal(await ev("document.querySelector('.coach-count').textContent"),"Progress 3/5");
+  await mouse("[data-highlight]");
+  await until(()=>ev("document.querySelector('.tour-target')?.matches('.see-markers')"),"compare inspection guide");
+  await mouse(".see-markers");
+  await mouse(".save-comparison");
+  await until(()=>ev("document.querySelector('.coach-count')?.textContent.includes('Complete')"),"comparison saved");
+  await ev("go('home')");
+  assert.equal(await ev("!!document.querySelector('.lab-coach')"),false);
+  await ev("openRecord('floodgate')");
+  assert.equal(await ev("!!document.querySelector('.lab-coach')"),false);
 
   await fetch(url+"/api/key",{method:"POST",headers,body:JSON.stringify({key:""})});
   const capturedPath=path.join(temp,"Lantern_v001.blend");
@@ -289,6 +403,7 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await ev(`change((p,state)=>state.projects.push({id:"trace-test",name:"Mechs",sections:p.sections,classes:[],records:[],tools:p.tools,revisions:[]}))`);
   await ev("locationState={project:'trace-test',view:'home'};render()");
   const traceButton=".project-trace .vision-launch";
+  await mouse(".project-trace summary");
   assert.equal(await ev(`$('${traceButton}').textContent`),"Trace screenshot to exact project file");
   await mouse(traceButton);
   assert.equal(await ev("$('#dialogTitle').textContent"),"Add record");
@@ -299,11 +414,12 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
     p.revisions.push({id:"rig-v9",record:"rig",tool:p.tools[0].id,path:"D:/test/Patapim_v9.blend",label:"v9",branch:"Rigging",parent:"",preview:"",note:"",comparisons:[]})
   }).then(render)`);
   assert.deepEqual(await ev("[...$('#traceAsset').options].map(o=>o.textContent)"),["Patapim · Add a preview","Pen · Add a file"]);
+  await mouse(".project-trace summary");
   await ev("$('#traceAsset').value='prop'");
   await mouse(traceButton);
   assert.equal(await ev("$('#dialogTitle').textContent"),"Track a revision");
   await mouse("#cancel");
-  await ev("go('home');$('#traceAsset').value='rig'");
+  await ev("go('home');document.querySelector('.project-trace').open=true;$('#traceAsset').value='rig'");
   await mouse(traceButton);
   assert.equal(await ev("$('#traceRevision').selectedOptions[0].textContent"),"D:/test/Patapim_v9.blend");
   await ev(`(async()=>{const file=new File([await (await fetch('/art/lantern-wide.jpg')).blob()],'rig.jpg',{type:'image/jpeg'});
@@ -335,5 +451,91 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await until(()=>ev("!dialog.open && !busy"),"saved discipline settings");
   await ev("projectOptions(project())");
   assert.equal(new Map(await disciplineChoices("VFX & simulation")).get("Studio FX"),true);
+
+  await mouse("#cancel");
+  const clickButton=(scope,label)=>ev(`[...document.querySelectorAll(${JSON.stringify(scope+" button")})].find(b=>b.textContent.trim()===${JSON.stringify(label)}).click()`);
+  await clickButton("#rail","Manage projects");
+  const managed=id=>`[data-project-id="${id}"]`;
+  assert.match(await ev(`$(${JSON.stringify(managed("trace-test"))}).textContent`),/2 records · 1 revision/);
+  await clickButton(managed("brine"),"Rename");
+  await ev("$('#projectName').value='Harbor test'");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && find(data.projects,'brine').name==='Harbor test'"),"rename another project");
+  assert.equal(await ev("project().id"),"trace-test");
+  const beforeDelete=await ev("JSON.stringify(project())");
+  await clickButton(managed("trace-test"),"Delete");
+  assert.match(await ev("$('#fields').textContent"),/Mechs/);
+  await mouse("#cancel");
+  assert.equal(await ev("JSON.stringify(project())"),beforeDelete);
+  await clickButton(managed("trace-test"),"Delete");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && !find(data.projects,'trace-test')"),"delete active project");
+  assert.equal(await ev("locationState.view"),"projects");
+  assert.equal(await ev("$('#projectPicker').value"),await ev("project().id"));
+  await mouse(".edit-history button:first-child");
+  await until(()=>ev("!!find(data.projects,'trace-test')"),"restore deleted project");
+  assert.equal(await ev("JSON.stringify(find(data.projects,'trace-test'))"),beforeDelete);
+  await mouse(".edit-history button:last-child");
+  await until(()=>ev("!find(data.projects,'trace-test')"),"redo project deletion");
+  const current=await ev("project().id");
+  const other=await ev("data.projects.find(p=>p.id!==project().id).id");
+  await clickButton(managed(other),"Delete");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && data.projects.length===1"),"delete inactive project");
+  assert.equal(await ev("project().id"),current);
+  assert.ok(await ev("!!document.querySelector('.project-list button:disabled')"));
+  assert.equal(await fs.readFile(capturedPath,"utf8"),"fixture");
+
+  await client.send("Page.navigate",{url:url+"/?demo=branches"});
+  await until(()=>ev("!!document.querySelector('.branch-choices')"),"branch learning choices for a new project");
+  await mouse(".branch-choices section:nth-child(2) a");
+  await until(()=>ev("!!document.querySelector('#gameName')"),"new project start");
+  await ev("document.querySelector('#gameName').value='Fresh Journey';document.querySelector('#gameChat').requestSubmit()");
+  await until(()=>ev("locationState.view==='setup' && intake?.step===1"),"new project disciplines");
+  await ev("[...document.querySelectorAll('#intakePanel .bar button')].find(b=>b.textContent.includes('3D modeling & sculpting')).click()");
+  await mouse("#intakePanel .actions .primary");
+  await until(()=>ev("intake?.step===2"),"new project software");
+  await mouse("#intakePanel .actions .primary");
+  await until(()=>ev("intake?.step===3"),"new project folders");
+  await mouse("#intakePanel .actions .primary");
+  await until(()=>ev("intake?.step===4 && !intakeWorking"),"new project asset review");
+  await mouse("#intakePanel .actions .primary");
+  await until(()=>ev("locationState.view==='home' && visualTour?.kind==='own' && visualTour.stage==='intro'"),"own project introduction");
+  assert.match(await ev("document.querySelector('.lab-coach p').textContent"),/Hover over an ⓘ/);
+  await mouse(".coach-next");
+  await until(()=>ev("visualTour?.stage==='classes' && !!document.querySelector('.root-class.tour-target')"),"own project class guidance");
+  await mouse(".root-class");
+  await ev("document.querySelector('#name').value='NPCs'");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && project().classes.some(c=>c.name==='NPCs')"),"create a root class");
+  await mouse(".class-group .class-actions button:first-child");
+  await ev("document.querySelector('#name').value='Wildlife'");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && project().classes.some(c=>c.name==='Wildlife')"),"create a nested class");
+  assert.equal(await ev("project().classes.find(c=>c.name==='Wildlife').parent"),await ev("project().classes.find(c=>c.name==='NPCs').id"));
+  await mouse(".coach-next");
+  await until(()=>ev("visualTour?.stage==='asset' && !!document.querySelector('.add-asset.tour-target')"),"own project asset guidance");
+  await mouse(".add-asset");
+  await ev("document.querySelector('#name').value='Forest Critter';document.querySelector('#cls').value=project().classes.find(c=>c.name==='Wildlife').id");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && visualTour?.stage==='graph' && !!document.querySelector('.tab-history.tour-target')"),"own asset history guidance");
+  assert.equal(await ev("record().cls"),await ev("project().classes.find(c=>c.name==='Wildlife').id"));
+  await mouse(".tab-history");
+  await until(()=>ev("!!document.querySelector('.graph-title.tour-target')"),"own revision graph guide");
+  await ev("document.querySelector('.coach-next').click()");
+  assert.equal(await ev("visualTour"),null);
+
+  await clickButton("#rail","Ask this project");
+  assert.ok(await ev("!!document.querySelector('#rail button.ai-action.active')"));
+  assert.ok(!await ev("document.querySelector('#rail').innerText.includes('Setup guide')"));
+  await clickButton("#rail","+ New Project");
+  await until(()=>ev("!!document.querySelector('#gameName')"),"homepage from sidebar");
+  assert.equal(await ev("document.querySelector('#gameName').placeholder"),"Type your game's name to create a new Project");
+  assert.equal(await ev("document.querySelector('#guideOnLaunch')"),null);
+  await clickButton(".guide-toolbar","Open Project Library");
+  await until(()=>ev("locationState.view==='home' && !!document.querySelector('#projectPicker')"),"open project library");
+  await clickButton("#rail","Manage projects");
+  await clickButton("main","+ New Project");
+  await until(()=>ev("!!document.querySelector('#gameName') && locationState.view==='welcome'"),"homepage from project management");
 
 });

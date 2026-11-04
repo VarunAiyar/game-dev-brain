@@ -1,23 +1,26 @@
-# Game Dev Brain
+# Game Dev's Best Friend
 
-Double-click **Start Game Dev Brain.cmd**. The app opens in your browser. Keep its console open while you work. Requires Python 3.10+ on Windows. No package installation is needed.
+Double-click **Start Game Dev's Best Friend.cmd**. The app opens in your browser. Keep its console open while you work. Requires Python 3.10+ on Windows. No package installation is needed.
 
 ### Capture a revision from Blender
 
-1. Run **Setup Blender Capture.cmd** once to install Meta’s mask decoder beside the app. Connect your Meta Model API key in Game Dev Brain for automatic analysis.
-2. In **History → Blender shortcut**, download the add-on. In Blender **Preferences → Add-ons → Install from Disk**, select `game_dev_brain.py` and enable **Game Dev Brain – Capture checkpoint**.
-3. Save a `.blend` file. With the pointer over a 3D View, press **Ctrl+Alt+Shift+C**. The same command is available in the viewport’s **View** menu. Keep Game Dev Brain running on its default port.
-4. Capture again to add a timestamped checkpoint to the same revision. Save As a numbered sibling such as `Pen_v002.blend`, edit the viewport and capture to create a linked revision. An exact tracked file takes priority, followed by a version series in the same folder and linked Blender folders. Blender asks for a destination if it has no clear match.
+1. Start the app on the same Windows PC as Blender and open **Open Project Library**. If the [local app](http://127.0.0.1:48731/) is already running on port 48731, use that instance.
+2. In Blender **4.2 or later**, open **Edit → Preferences → Add-ons → Install from Disk**. Select the [add-on file from this repository](blender/game_devs_best_friend.py), or download it from **History → Blender capture setup** in the app. Enable **Game Dev's Best Friend – Capture checkpoint**. If you installed the earlier **Game Dev Brain** add-on, disable that copy first.
+3. Save a file such as `Pen_v001.blend`. Hover over the **3D View** and press **Ctrl+Alt+Shift+C**. If Blender asks for a destination, choose your game. You can also use **View → Game Dev's Best Friend: Capture Checkpoint** in the viewport.
+4. Look for **Captured** in Blender. Switch to the app and choose **Open checkpoint** in the notification, or open the asset’s **History**, select its Blender node, and look under **Blender checkpoints**.
+5. Edit the model and capture again. You should see two timestamped viewports on the same revision. To test a linked revision, use **Save As** to create `Pen_v002.blend` in the same folder and capture again. The graph should connect v001 to v002.
 
-Each checkpoint stores the viewport, timestamp, active object, mode, and saved file path locally. The shortcut captures the current viewport even when edits are unsaved. It never saves over the Blender file. Undo a capture in Game Dev Brain.
+Local capture works without a Meta key. For automatic AI notes, connect your key in the app. To also see SAM outlines, run [Setup Blender Capture.cmd](Setup%20Blender%20Capture.cmd) once. It installs the pinned mask decoder beside the app using [requirements-capture.txt](requirements-capture.txt).
+
+Each checkpoint stores the viewport, timestamp, active object, mode, and saved file path locally. The shortcut captures the current viewport even when edits are unsaved. It never saves over the Blender file. Undo a capture in Game Dev's Best Friend.
 
 With a key connected, the first viewport gets a Muse Spark baseline note. Later checkpoints compare against the previous screenshot. Muse Spark describes visible changes and proposes a region. When a changed part is visible in the new image, SAM 3.1 segments it and the inspector draws the decoded mask. Only viewport images and prompts go to Meta. The artist’s own quick note stays separate. A change of camera angle can make comparisons inconclusive. Offline captures can be analyzed later in the checkpoint inspector.
 
-On launch, enter your game’s name. A new name creates a project immediately. An existing name opens that project’s setup. Pick a role, adjust its disciplines and tools, then add a working folder for any software you use. You can leave the others empty. Turn off **Guide me on launch** to return straight to the workspace. **Practice the basics** under **Asset library → Project guide** runs the three hands-on exercises.
+On launch, enter your game’s name. A new name creates a project immediately. An existing name opens that project’s setup. Pick a role, adjust its disciplines and tools, then add a working folder for any software you use. You can leave the others empty. Choose **Open Project Library** at any step to return to your workspace. **Practice the basics** under **Asset library → Project guide** runs the three hands-on exercises.
 
 **Review the scan.** The app groups versions by asset, software and discipline. Edit each proposed asset, classification, badge and note before saving. Use the same asset name for rigging and modeling. Pick a source version if you know the handoff. Choose formats per folder. Blender defaults to `.blend`. Select `.fbx` when you also want exports. Each format has its own series in the scan and row in the graph. Numbered files sort naturally, including versions with test names after the number. Matching `_Start` and `_Final` files appear in one asset in that order. Installation folders serve as shortcuts. Only project folders are scanned.
 
-**Brinefall → Asset library → Project guide** has five example tasks. Open **Compare the handles** to try a revision pair. **Canopy Run** shows an enemy referenced by a mechanic, playtest note and teaser.
+Click the Game Dev's Best Friend logo to return to the opening screen. **How Game Dev's Best Friend helps** walks through folder tracking, revision branches and visual review. Its [three examples](http://127.0.0.1:48731/?view=help#examples) cover the branch editor, screenshot trace and revision comparison. The branch editor offers a guided example project or a shorter tour after setting up your own project. Each guide can be closed with **×**.
 
 ## Revision graph
 
@@ -79,10 +82,10 @@ The Python server calls Meta’s Responses API at **https://api.meta.ai/v1/respo
 
 ### Try the visual demo
 
-With the app running on its default port, open [Trace the Canopy Run playtest frame](http://127.0.0.1:48731/?demo=trace) or [Compare the Brinefall lantern handles](http://127.0.0.1:48731/?demo=compare). Opening a demo loads local example images. The model runs when you click a subject or request analysis.
+The two guided examples use bundled illustrative artwork. Opening an example loads its revision graph. Model calls begin when you request analysis.
 
-1. Use **Connect Meta AI** to set your key. In **Canopy Run**, open **Canopy sentry → History → Trace screenshot → Use example playtest frame**. Click the bird for a SAM crop, or drag a rectangle around it. Choose **Find matching revisions**, inspect the evidence, and follow a result into the graph.
-2. In **Brinefall → Project guide → Compare the handles**, choose **Highlight changes**. Select a finding to see both regions, then **Save comparison**. These demos use the real API each time you request analysis. Existing notes and manual graph tools work offline.
+1. [Trace the Ridgeback raptor](http://127.0.0.1:48731/?demo=trace). Open screenshot trace, click the hunter for a SAM crop or drag a box, then match the crop against three Blender revision previews. Save the match evidence under **Sources & decisions**. A match is a visual identification, and the model can return an uncertain result.
+2. [Review the Tidebreaker floodgate](http://127.0.0.1:48731/?demo=compare). Open **Compare**, choose **Highlight changes**, inspect the marked areas on the blockout and lockdown previews, then edit and save the note on that revision pair.
 
 [Meta image grounding](https://dev.meta.ai/docs/image-understanding) · [SAM point prompts and segmentation](https://dev.meta.ai/docs/sam/segmenting)
 

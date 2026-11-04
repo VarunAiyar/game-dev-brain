@@ -41,15 +41,15 @@ function detectSoftware(p,path,context){
  return registered.length===1?registered[0].name:""
 }
 const classPath=cls=>lineage(cls).map(c=>c.name).join(" / ");
-const fileName=v=>v.path?.split(/[\\/]/).at(-1)||"";
+const fileName=v=>v.path?.split(/[\\/]/).at(-1)||v.exampleFilename||"";
 const numericLabels=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
 function versionCompare(a,b){
  const phase=v=>/^start$/i.test(v.label)?-1:/^final$/i.test(v.label)?1:0;
  return (a.sequence??Infinity)-(b.sequence??Infinity)||phase(a)-phase(b)||numericLabels.compare(a.label,b.label)||numericLabels.compare(a.path||"",b.path||"")
 }
-const formatLane=v=>JSON.stringify([v.tool,v.branch,fileExt(v.path)]);
+const formatLane=v=>JSON.stringify([v.tool,v.branch,fileExt(fileName(v))]);
 function connectMilestones(p,recordId,tool,branch,format){
- const group=p.revisions.filter(v=>v.record===recordId&&v.tool===tool&&v.branch===branch&&fileExt(v.path)===format);
+ const group=p.revisions.filter(v=>v.record===recordId&&v.tool===tool&&v.branch===branch&&fileExt(fileName(v))===format);
  const families=new Map();
  for(const v of group){
    if(!/^(start|final)$/i.test(v.label)||!v.path)continue;
@@ -105,7 +105,7 @@ function colorDialog(v){
  $("#nodeTint").oninput=()=>{$("#autoTint").checked=false};$("#autoTint").onchange=e=>{if(e.target.checked)$("#nodeTint").value=base}
 }
 function graphSettings(r,revs){
- const g=r.graphPrefs||{},types=[...new Set(revs.map(v=>fileExt(v.path)).filter(Boolean))].sort();
+ const g=r.graphPrefs||{},types=[...new Set(revs.map(v=>fileExt(fileName(v))).filter(Boolean))].sort();
  modal("Graph settings",select("graphTitles","Card titles",[["file","Filename first"],["version","Version first"],["short","Version only"]].map(([k,n])=>opt(k,n,g.titles||"file")).join(""))+select("graphFormat","Visible file type",opt("","All tracked files",g.format||"")+types.map(t=>opt(t,t,g.format)).join(""))+`<label class="switch-line"><input type="checkbox" id="graphPics" ${g.previews!==false?"checked":""}> Show preview thumbnails</label>`,async()=>{
   await change(p=>{find(p.records,r.id).graphPrefs={titles:val("graphTitles"),format:val("graphFormat"),previews:$("#graphPics").checked}});locationState.showAll=false;render()
  })

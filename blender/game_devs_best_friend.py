@@ -1,5 +1,5 @@
-"""Game Dev Brain viewport checkpoint. Install this file from Blender Preferences."""
-bl_info={"name":"Game Dev Brain – Capture checkpoint","author":"Game Dev Brain",
+"""Game Dev's Best Friend viewport checkpoint. Install this file from Blender Preferences."""
+bl_info={"name":"Game Dev's Best Friend – Capture checkpoint","author":"Game Dev's Best Friend",
          "version":(1,0,0),"blender":(4,2,0),"category":"3D View",
          "description":"Capture your saved .blend path and current viewport with Ctrl+Alt+Shift+C"}
 
@@ -31,10 +31,10 @@ def request(route,body=None,token=None):
         try:
             reason=json.load(err)["error"]
         except (ValueError,KeyError):
-            reason="Restart Game Dev Brain to load Blender capture support."
+            reason="Restart Game Dev's Best Friend to load Blender capture support."
         raise RuntimeError(reason) from err
     except OSError as err:
-        raise RuntimeError("Start Game Dev Brain on port 48731, then try again.") from err
+        raise RuntimeError("Start Game Dev's Best Friend on port 48731, then try again.") from err
 
 
 def viewport(context):
@@ -64,7 +64,7 @@ def choices(self,context):
 
 class GDB_OT_checkpoint(bpy.types.Operator):
     bl_idname="gdb.capture_checkpoint"
-    bl_label="Game Dev Brain: Capture Checkpoint"
+    bl_label="Game Dev's Best Friend: Capture Checkpoint"
     bl_options={'INTERNAL'}
     destination: bpy.props.EnumProperty(name="Destination",items=choices)
 
@@ -82,7 +82,7 @@ class GDB_OT_checkpoint(bpy.types.Operator):
             routes=request("/api/checkpoint",{"mode":"route","path":self.path},self.token)
             self.targets=routes["choices"]
             if not self.targets:
-                raise RuntimeError("Create a project in Game Dev Brain first.")
+                raise RuntimeError("Create a project in Game Dev's Best Friend first.")
             dirty=bpy.data.is_dirty
             self.payload=dict(viewport(context),mode="save",id=uuid.uuid4().hex,path=self.path,
                               object=context.active_object.name if context.active_object else "",
@@ -109,12 +109,12 @@ class GDB_OT_checkpoint(bpy.types.Operator):
 
     def store(self,target):
         reply=request("/api/checkpoint",dict(self.payload,project=target["project"],source=target["source"]),self.token)
-        self.report({'INFO'},"Captured · "+reply["label"]+" · Undo in Game Dev Brain")
+        self.report({'INFO'},"Captured · "+reply["label"]+" · Undo in Game Dev's Best Friend")
         return {'FINISHED'}
 
 
 def menu(self,context):
-    self.layout.operator(GDB_OT_checkpoint.bl_idname, text="Game Dev Brain: Capture Checkpoint")
+    self.layout.operator(GDB_OT_checkpoint.bl_idname, text="Game Dev's Best Friend: Capture Checkpoint")
 
 
 def register():

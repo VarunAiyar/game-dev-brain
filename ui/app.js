@@ -27,9 +27,9 @@ function projectTrace(p){
    const asset=find(p.records,$("#traceAsset")?.value);
    if(!asset){recordForm();return}
    openRecord(asset.id,"History");
-   traceScreenshot(asset,p.revisions.filter(v=>v.record===asset.id),p.id==="canopy"&&asset.id==="bird")
+   traceScreenshot(asset,p.revisions.filter(v=>v.record===asset.id),p.id==="canopy"&&["ridge-raptor","bird"].includes(asset.id))
  };
- return `<section class="project-trace"><div><small class="eyebrow">Meta vision · SAM + Muse Spark</small><h2>Screenshot trace</h2><p>${options?"Choose an asset to match a playtest screenshot against its file previews.":"Add your first asset and a file preview to start matching screenshots."}</p></div>${options?`<label>Asset <select id="traceAsset">${options}</select></label>`:""}${btn(traceLabel,launch,"vision-launch")}</section>`
+ return `<details class="project-trace"><summary>Trace a screenshot</summary><div class="trace-picker">${options?`<label>Asset <select id="traceAsset">${options}</select></label>`:""}${btn(traceLabel,launch,"vision-launch")}</div></details>`
 }
 
 const opt=(val,label,sel)=>`<option value="${esc(val)}" ${val===sel?"selected":""}>${esc(label)}</option>`;
@@ -58,7 +58,6 @@ document.addEventListener("keydown",e=>{
  const k=e.key.toLowerCase();if(k!=="z"&&k!=="y")return;
  e.preventDefault();travelEdit(k==="y"||e.shiftKey?"redo":"undo").catch(err=>toast(err.message))
 });
-const productionSections=()=>["2D Sprites","3D Modeling","Texturing"].map(name=>({id:id(),name,kind:"Collection",fields:[]}));
 const iconNames={
  "JangaFX GeoGen":"geogen","Cinema 4D":"cinema","Rhino":"rhino","SketchUp":"sketchup","3DCoat":"threedcoat","Plasticity":"plasticity","Marvelous Designer":"marvelous","CLO":"clo","LightWave 3D":"lightwave","World Machine":"worldmachine","SpeedTree":"speedtree","Mudbox":"autodesk","MotionBuilder":"autodesk","Fusion":"autodesk","Modo":"foundry","Quixel Mixer":"mixer","JangaFX EmberGen":"embergen","JangaFX LiquiGen":"liquigen","JangaFX IlluGen":"illugen","Gaea":"gaea","Marmoset Toolbag":"toolbag","RizomUV":"rizomuv","Asset Forge":"assetforge","Notion":"notion","Obsidian":"obsidian","Miro":"miro","Google Docs":"docs","ChatGPT":"chatgpt","Codex":"codex","Claude":"claude","Krita":"krita","Photoshop":"photoshop","Illustrator":"illustrator","Aseprite":"aseprite","Affinity Designer":"affinity","Clip Studio Paint":"clip","Blender":"blender","Maya":"maya","ZBrush":"zbrush","3ds Max":"max","Houdini":"houdini","Blockbench":"blockbench","Substance 3D Painter":"painter","Substance Painter":"painter","Substance 3D Designer":"designer","Mari":"mari","ArmorPaint":"armor","Spine":"spine","Cascadeur":"cascadeur","Mixamo":"mixamo","After Effects":"aftereffects","REAPER":"reaper","Audacity":"audacity","FL Studio":"flstudio","Ableton Live":"ableton","FMOD Studio":"fmod","Wwise":"wwise","Unreal Engine":"unreal","UEFN":"uefn","Unity":"unity","Godot":"godot","Roblox Studio":"roblox","Meta Horizon Worlds":"meta","GameMaker":"gamemaker","OBS Studio":"obs","Xbox Game Bar":"xbox","NVIDIA App":"nvidia","ShareX":"sharex","DaVinci Resolve":"resolve","Premiere Pro":"premiere","CapCut":"capcut","Final Cut Pro":"finalcut","Canva":"canva","Figma":"figma","Steamworks":"steam","itch.io":"itch","Creator Portal":"fortnite","Roblox Creator Dashboard":"roblox","Meta Horizon Creator Portal":"meta"
 };
@@ -75,28 +74,48 @@ async function change(edit){
  try{const next=structuredClone(data);edit(find(next.projects,project().id),next);const result=await post("save",{version,state:next,label:dialog.open?activeDrawer:lastCommand});editHistory=result.history;data=next;version=result.version}finally{busy=false}
 }
 function go(view,extras={}){
+ if(new URLSearchParams(location.search).has("view"))history.pushState(null,"",location.pathname);
  locationState={project:project().id,view,...extras};query="";classFilter="";draft="";recall="";render()
 }
 function openRecord(key,tab,more={}){
  const p=project(),format=find(p.records,key)?.graphPrefs?.format,v=more.revision&&find(p.revisions,more.revision);
- const showAll=!!(format&&v&&fileExt(v.path)!==format);
+ const showAll=!!(format&&v&&fileExt(fileName(v))!==format);
  go("record",{record:key,tab:tab||(p.revisions.some(v=>v.record===key)?"History":"Overview"),...more,showAll})
 }
 const dialogButtonAction=new WeakMap();
+window.addEventListener("popstate",()=>{
+ if(!data)return;
+ const page=new URLSearchParams(location.search).get("view");
+ if(page==="welcome"||page==="help"){
+   if(locationState.view!==page){locationState={project:project().id,view:page};render()}
+ }else if(["welcome","help"].includes(locationState.view)){
+   locationState=JSON.parse(localStorage.getItem("gdb.view")||"null")||{project:project().id,view:"home"};render()
+ }
+});
 function render(){
+ storyObserver?.disconnect();
  // A pending save or undo can refresh the graph while another form is open.
  if(dialog.open)for(const b of dialog.querySelectorAll("[data-a]")){
    if(!dialogButtonAction.has(b))dialogButtonAction.set(b,actions[Number(b.dataset.a)])
  }
  document.querySelector("#quickNote")?.remove();actions=[];const p=project(),s=locationState;updateCompoundFormats(p);
  document.body.classList.remove("booting");
- document.body.classList.toggle("in-guide",s.view==="setup");
+ document.body.classList.toggle("in-guide",["setup","welcome","help","branch-choice"].includes(s.view));
+ if(s.view==="branch-choice"){
+   stopVisualTour();rail.replaceChildren();document.title="Branch editor · Game Dev's Best Friend";branchChoiceView();return
+ }
+ if(s.view==="help"||s.view==="welcome"){
+   stopVisualTour();rail.replaceChildren();
+   document.title=(s.view==="help"?"How it helps":"Welcome")+" · Game Dev's Best Friend";
+   if(s.view==="help")showHelpStory();else studioIntake(true);
+   return
+ }
  if(s.view==="setup"){
-   localStorage.setItem("gdb.view",JSON.stringify(s));document.title="Studio setup · Game Dev Brain";
+   stopVisualTour();localStorage.setItem("gdb.view",JSON.stringify(s));document.title="Studio setup · Game Dev's Best Friend";
    rail.innerHTML="";if(s.practice&&guide){setupView();refreshCoach()}else studioIntake();return
  }
- localStorage.setItem("gdb.view",JSON.stringify(s));document.title=`${p.name} · Game Dev Brain`;
- rail.innerHTML=`<div class="rail-brand">${graphMark()}<b>Game Dev Brain</b></div><small>Workspace</small><select id="projectPicker" aria-label="Project">${opts(data.projects,p.id)}</select>${btn("Asset library",()=>go("home"),["home","record","branches"].includes(s.view)?"active":"")}${btn("Software & folders",()=>go("software"),s.view==="software"?"active":"")}${btn("Search project",()=>go("search"),s.view==="search"?"active":"")}${btn("Project settings",()=>projectOptions(p))}<hr><details class="rail-sections" ${s.view==="section"?"open":""}><summary>Project sections</summary>${sectionNavigation(p,s)}${btn("+ New section",()=>sectionForm())}</details><div class="push"></div><hr>${btn("Ask this project",()=>go("ask"),s.view==="ask"?"active":"")}${metaRailButton()}${btn("Setup guide",startSetup)}${btn("+ New project",newProject)}`;
+ localStorage.setItem("gdb.view",JSON.stringify(s));document.title=`${p.name} · Game Dev's Best Friend`;
+ rail.innerHTML=`${homeBrand("rail-brand")}<small>Workspace</small><select id="projectPicker" aria-label="Project">${opts(data.projects,p.id)}</select>${btn("Manage projects",()=>go("projects"),s.view==="projects"?"active":"")}${btn("Asset library",()=>go("home"),["home","record","branches"].includes(s.view)?"active":"")}${btn("Software & folders",()=>go("software"),s.view==="software"?"active":"")}${btn("Search project",()=>go("search"),s.view==="search"?"active":"")}${btn("Project settings",()=>projectOptions(p))}<hr><details class="rail-sections" ${s.view==="section"?"open":""}><summary>Project sections</summary>${sectionNavigation(p,s)}${btn("+ New section",()=>sectionForm())}</details><div class="push"></div><hr>${aiBtn("Ask this project",()=>go("ask"),s.view==="ask"?"active":"")}${metaRailButton()}${btn("+ New Project",newProject)}`;
  $("#projectPicker").onchange=e=>{locationState={project:e.target.value,view:"home"};go("home")};
  if(s.view==="section"&&find(p.sections,s.section))showSection();
  else if(s.view==="branches"&&record())branchManager();
@@ -104,23 +123,28 @@ function render(){
  else if(s.view==="software")software();
  else if(s.view==="ask")askView();
  else if(s.view==="search")searchView();
+ else if(s.view==="projects")manageProjects();
  else home();
- main.insertAdjacentHTML("afterbegin",undoBar());
+ if(s.view==="home"&&!visualTour&&localStorage.getItem(intakeSlot)){
+   const setup=getIntake();
+   if(setup.branchTour&&setup.project===p.id){setup.branchTour=false;stash();visualTour=ownBranchTourState(p.id)}
+ }
+ main.insertAdjacentHTML("afterbegin",undoBar());syncVisualTour();
 }
 function assetArt(r,cls=""){return r.cover||!r.emoji?image(r.cover,cls,r.name):`<div class="placeholder asset-emoji ${cls}">${esc(r.emoji)}</div>`}
 function card(r){return `<button type="button" class="card" data-a="${bind(()=>openRecord(r.id))}">${assetArt(r)}<section><small>${esc(find(project().classes,r.cls)?.name||find(project().sections,r.section)?.name)}</small><h3>${esc(r.name)}</h3><p>${esc(r.description.slice(0,95))}</p></section></button>`}
 function home(){
  const p=project(),demo=p.id==="brine";
  const guide=[
- ["Trace a branch","Select v007.2. Follow its two handoffs to Painter and ZBrush.",()=>openRecord("lamp","History",{revision:"l72"})],
- ["Compare the handles","Compare v007.1 with v007.2. Choose Highlight changes to see the handle difference on both images.",()=>openRecord("lamp","Compare",{before:"l71",after:"l72"})],
+ ["Trace a branch","Select v001.2. Follow its two handoffs to Painter and ZBrush.",()=>openRecord("lamp","History",{revision:"l72"})],
+ ["Compare the handles","Compare v001.1 with v001.2. Choose Highlight changes to see the handle difference on both images.",()=>openRecord("lamp","Compare",{before:"l71",after:"l72"})],
  ["Follow a reference","Open Harbor lantern from the key-art record. Check its Used in tab.",()=>openRecord("capsule")],
  ["Track a real file","Pick software, link a folder, scan it, then attach a file to a record.",()=>go("software")],
  ["Try a mechanic","Open Patrol & detection and follow its Canopy sentry reference.",()=>{locationState.project="canopy";openRecord("patrol")}]
  ].filter((task,index)=>[p.revisions.some(v=>v.id==="l72"),["l71","l72"].every(id=>find(p.revisions,id)),!!find(p.records,"capsule"),true,!!find(data.projects,"canopy")?.records.some(r=>r.id==="patrol")][index]);
- main.innerHTML=head(p.name,"Asset library",btn("Project settings",()=>projectOptions(p))+btn("+ Root class",()=>classForm())+btn("+ Add asset",()=>recordForm(),"primary"))+
- projectTrace(p)+`<div class="library-caption"><span>${p.records.length} assets & records</span><span>${p.revisions.length} revision entries</span><span>${p.tools.length} tools</span></div><div class="asset-table"><div class="asset-line asset-columns"><span>Asset</span><span>Software</span><span>History</span></div>${classLibrary(p,r=>{const revs=p.revisions.filter(v=>v.record===r.id),tools=[...new Set(revs.map(v=>toolName(v.tool)))];return `<button class="asset-line" data-a="${bind(()=>openRecord(r.id))}"><span class="asset-cell">${r.cover?image(r.cover,"asset-thumb",r.name):`<i class="asset-thumb">${esc(r.emoji||"◇")}</i>`}<span><b>${esc(r.name)}</b><small>${esc(classPath(r.cls)||find(p.sections,r.section)?.name)}</small></span></span><span class="asset-tools">${tools.map(n=>`<span title="${esc(n)}">${toolIcon(n)}</span>`).join("")||"—"}</span><span>${revs.length?new Set(revs.map(branchKey)).size+" branches":"Open record"} ↗</span></button>`})||empty("Add your first asset to start its history.")}</div>`+
- `<details class="library-guide"><summary>Project guide</summary>${btn("Practice the basics",startPractice)}${p.id==="canopy"&&find(p.records,"bird")?btn("Trace the example playtest frame",()=>{openRecord("bird","History");traceScreenshot(record(),p.revisions.filter(v=>v.record==="bird"),true)}):""}${demo?guide.map(([name,desc,fn])=>`<div class="row"><div class="grow"><b>${esc(name)}</b><p>${esc(desc)}</p></div>${btn("Open →",fn)}</div>`).join(""):""}</details>`;
+ main.innerHTML=head(p.name,"Asset library",btn("Project settings",()=>projectOptions(p))+btn("+ Root class",()=>classForm(),"root-class")+btn("+ Add asset",()=>recordForm(),"primary add-asset"))+
+ projectTrace(p)+`<div class="library-caption"><span>${p.records.length} assets & records</span><span>${p.revisions.length} revision entries</span><span>${p.tools.length} tools</span></div><div class="asset-table"><div class="asset-line asset-columns"><span>Asset</span><span>Software</span><span>History</span></div>${classLibrary(p,r=>{const revs=p.revisions.filter(v=>v.record===r.id),tools=[...new Set(revs.map(v=>toolName(v.tool)))];return `<button class="asset-line" data-asset="${esc(r.id)}" data-a="${bind(()=>openRecord(r.id))}"><span class="asset-cell">${r.cover?image(r.cover,"asset-thumb",r.name):`<i class="asset-thumb">${esc(r.emoji||"◇")}</i>`}<span><b>${esc(r.name)}</b><small>${esc(classPath(r.cls)||find(p.sections,r.section)?.name)}</small></span></span><span class="asset-tools">${tools.map(n=>`<span title="${esc(n)}">${toolIcon(n)}</span>`).join("")||"—"}</span><span>${revs.length?new Set(revs.map(branchKey)).size+" branches":"Open record"} ↗</span></button>`})||empty("Add your first asset to start its history.")}</div>`+
+ `<details class="library-guide"><summary>Project guide</summary>${btn("Practice the basics",startPractice)}${demo?guide.map(([name,desc,fn])=>`<div class="row"><div class="grow"><b>${esc(name)}</b><p>${esc(desc)}</p></div>${btn("Open →",fn)}</div>`).join(""):""}</details>`;
 }
 function sectionNavigation(p,s){
  const link=sec=>btn(sec.name,()=>go("section",{section:sec.id}),s.section===sec.id?"active":"");
@@ -178,13 +202,42 @@ function readDisciplineSettings(){
    const toggle=row.querySelector("[data-stage]");return {i:Number(toggle.dataset.stage),enabled:toggle.checked,tools:[...row.querySelectorAll("details input:checked")].map(el=>el.value)}
  })
 }
+function projectContents(p){
+ const folders=new Set(p.tools.flatMap(t=>[...t.folders,...(t.installFolders||[])]).map(pathKey));
+ const count=(n,label)=>n+" "+label+(n===1?"":"s");
+ return [count(p.records.length,"record"),count(p.revisions.length,"revision"),count(folders.size,"linked folder")].join(" · ")
+}
+function manageProjects(){
+ const current=project().id,only=data.projects.length===1;
+ main.innerHTML=head("Workspace","Manage projects",btn("+ New Project",newProject,"primary"))+
+   `<div class="panel project-list">${data.projects.map(p=>`<article class="row" aria-label="${esc(p.name)}" data-project-id="${esc(p.id)}">
+   <div class="grow"><h3>${esc(p.name)} ${p.id===current?'<small class="chip">Current</small>':""}</h3><small>${projectContents(p)}</small></div>
+   ${btn("Open",()=>go("home",{project:p.id}))}
+   ${btn("Rename",()=>renameProject(p))}
+   ${only?'<button type="button" disabled aria-describedby="lastProjectHint">Delete</button>':btn("Delete",()=>deleteProject(p),"danger")}
+   </article>`).join("")}</div>`+(only?'<p id="lastProjectHint" class="sub">Create another project before deleting your last one.</p>':"")
+}
+function renameProject(p){
+ modal("Rename project",input("projectName","Project name",p.name,"text",true),async()=>{
+   const name=need("projectName");
+   if(name===p.name)return;
+   if(data.projects.some(x=>x.id!==p.id&&x.name.toLowerCase()===name.toLowerCase()))throw Error("Another project already uses that name.");
+   await change((_,state)=>{find(state.projects,p.id).name=name});render()
+ },"Rename project")
+}
+function deleteProject(p){
+ modal("Delete project",`<p>Delete <strong>${esc(p.name)}</strong> from this workspace?</p>
+   <p>${projectContents(p)}</p><p>Source files stay on disk. Undo restores this project and its history.</p>`,async()=>{
+   await change((_,state)=>{state.projects=state.projects.filter(x=>x.id!==p.id)});
+   go(locationState.view==="projects"?"projects":"home");
+   toast("Deleted "+p.name+". Use Undo to restore it.")
+ },"Delete project")
+}
 function projectOptions(p){
  modal("Project settings",input("projectName","Project name",p.name,"text",true)+disciplineSettings(p),async()=>{
    const name=need("projectName"),rows=readDisciplineSettings();await change(current=>{current.name=name;saveDisciplines(current,rows)});render();toast("Project settings saved.")
  });wireDisciplineSettings();
- if(data.projects.length>1)$("#fields").insertAdjacentHTML("beforeend",btn("Remove project…",()=>modal("Remove project",
-   `<p>Remove <b>${esc(p.name)}</b> and its ${p.records.length} records from your library? Source files stay on disk. Undo restores the project.</p>`,
-   async()=>{await change((current,state)=>{state.projects=state.projects.filter(x=>x.id!==p.id)});locationState={project:data.projects[0].id,view:"home"};render()},"Remove project"),"danger"))
+ if(data.projects.length>1)$("#fields").insertAdjacentHTML("beforeend",btn("Delete project…",()=>deleteProject(p),"danger"))
 }
 function showSection(){
  const p=project(),sec=find(p.sections,locationState.section),classes=p.classes.filter(c=>c.section===sec.id);
@@ -205,7 +258,7 @@ function showRecord(){
  const revs=p.revisions.filter(x=>x.record===r.id),tab=s.tab||"Overview";
  const backs=p.records.flatMap(src=>references(src).filter(l=>l.target===r.id).map(l=>({src,...l})));
  main.innerHTML=head(p.name+" / "+(classPath(r.cls)||sec.name),r.name,btn("← "+sec.name,()=>go("section",{section:sec.id}))+btn("Edit record",()=>recordForm(r)))+
- `<div class="tabs">${["Overview","History","Compare","Used in"].map(t=>btn(t+(t==="Used in"?` (${backs.length})`:""),()=>{if(t===tab)return;if(t==="Compare"&&tab==="History")openGraphCompare(r.id,s.revision);else openRecord(r.id,t)},tab===t?"chosen":"")).join("")}</div><div id="content"></div>`;
+ `<div class="tabs">${["Overview","History","Compare","Used in"].map(t=>btn(t+(t==="Used in"?` (${backs.length})`:""),()=>{if(t===tab)return;if(t==="Compare"&&tab==="History")openGraphCompare(r.id,s.revision);else openRecord(r.id,t)},(tab===t?"chosen ":"")+"tab-"+t.toLowerCase().replace(" ","-"))).join("")}</div><div id="content"></div>`;
  const out=$("#content");
  if(tab==="History"){historyView(out,revs);return}
  if(tab==="Compare"){compareView(out,revs);return}
@@ -270,7 +323,7 @@ function comparisonPair(ordered,state,format){
    const before=byId.get(state.before),after=byId.get(state.after);
    return [before,before===after?undefined:after]
  }
- const visible=format?ordered.filter(v=>fileExt(v.path)===format):ordered;
+ const visible=format?ordered.filter(v=>fileExt(fileName(v))===format):ordered;
  if(state.revision){
    const focus=byId.get(state.revision);
    if(!focus)return [];
@@ -298,6 +351,7 @@ function comparisonPair(ordered,state,format){
  return best
 }
 function openGraphCompare(recordId,revision){
+ if(visualTour?.kind==="compare"&&visualTour.stage==="open"&&recordId===visualTour.c.asset&&!locationState.compareSelection?.length){const [before,after]=visualTour.c.revisions;openRecord(recordId,"Compare",{before,after});return}
  if(locationState.compareSelection?.length>2){toast("Select exactly two revisions to compare.");return}
  const [before,after]=locationState.compareSelection||[];
  openRecord(recordId,"Compare",before&&after?{before,after}:{revision:before||revision})
@@ -316,7 +370,8 @@ function compareView(out,revs){
    const preview=v?.preview?image(v.preview,"comparepic",filename):`<div class="placeholder comparepic">${v?"No preview for "+esc(filename):"Choose a revision"}</div>`;
    return `<section class="panel compare-pane"><label for="${key}">${title}</label>${picker}<small class="compare-path" title="${esc(v?.path)}">${esc(v?.path||"")}</small><div class="visual-preview" data-side="${key}">${preview}</div><h3>Quick note</h3>${textBlock(v?(v.note||"No quick note for this revision."):"—")}</section>`
  }
- out.innerHTML=`<div class="half compare-pair">${pane(a,"before","Before")}${pane(b,"after","After")}</div>`;
+ const demoPair=project().id===visualCases.compare.project&&record().id===visualCases.compare.asset;
+ out.innerHTML=`<div class="half compare-pair${demoPair?" case-pair":""}">${pane(a,"before","Before")}${pane(b,"after","After")}</div>`;
  for(const img of out.querySelectorAll("img.comparepic")){
    const unavailable=()=>{const message=document.createElement("div");message.className="placeholder comparepic";message.textContent="Couldn’t load the saved preview for "+img.alt;img.replaceWith(message)};
    img.addEventListener("error",unavailable,{once:true});
@@ -334,7 +389,7 @@ function compareView(out,revs){
  }
  const saved=b.comparisons.find(c=>c.before===a.id);
  const review=visualReview(out,a,b,saved?.visual);
- out.insertAdjacentHTML("beforeend",`<div class="panel"><div class="spread"><h2>Visible change</h2><span class="chip">Muse Spark · two previews</span></div><p class="sub">Generate sends only these two previews to Meta. Review the draft before saving.</p><div class="actions">${aiBtn("Generate AI draft",async()=>{if(!hasKey){keyForm();return}if(!a.preview||!b.preview||a.id===b.id)throw Error("Choose two different revisions with previews.");const result=await post("ai",{project:project().id,mode:"compare",before:a.id,after:b.id});if(!$("#diff")||pairStamp!==stamp||locationState.tab!=="Compare")return;draft=result.text;$("#diff").value=draft;toast("Draft ready to review.")},"primary")}</div><label for="diff">Comparison note · ${esc(fileName(a)||revisionLabel(a))} → ${esc(fileName(b)||revisionLabel(b))}</label><textarea id="diff">${esc(draft||saved?.text||"")}</textarea>${btn("Save comparison",async()=>{const val=$("#diff").value.trim();if(!val||a.id===b.id)throw Error("Choose different revisions and enter a comparison.");await change(p=>{const v=find(p.revisions,b.id);v.comparisons=v.comparisons.filter(c=>c.before!==a.id);v.comparisons.push({before:a.id,text:val,...(review.current?{visual:review.current}:{})})});draft="";render();toast("Comparison saved.")})}</div>`);
+ out.insertAdjacentHTML("beforeend",`<div class="panel"><div class="spread"><h2>Visible change</h2><span class="chip">Muse Spark · two previews</span></div><p class="sub">Generate sends only these two previews to Meta. Review the draft before saving.</p><div class="actions">${aiBtn("Generate AI draft",async()=>{if(!hasKey){keyForm();return}if(!a.preview||!b.preview||a.id===b.id)throw Error("Choose two different revisions with previews.");const result=await post("ai",{project:project().id,mode:"compare",before:a.id,after:b.id});if(!$("#diff")||pairStamp!==stamp||locationState.tab!=="Compare")return;draft=result.text;$("#diff").value=draft;toast("Draft ready to review.")},"primary")}</div><label for="diff">Comparison note · ${esc(fileName(a)||revisionLabel(a))} → ${esc(fileName(b)||revisionLabel(b))}</label><textarea id="diff">${esc(draft||saved?.text||"")}</textarea>${btn("Save comparison",async()=>{const val=$("#diff").value.trim();if(!val||a.id===b.id)throw Error("Choose different revisions and enter a comparison.");await change(p=>{const v=find(p.revisions,b.id);v.comparisons=v.comparisons.filter(c=>c.before!==a.id);v.comparisons.push({before:a.id,text:val,...(review.current?{visual:review.current}:{})})});draft="";render();tourStage("compare","done");toast("Comparison saved.")},"save-comparison")}</div>`);
 }
 const watchKey=(p,t)=>"gdb.watch."+p.id+"."+t.id;
 const watching=(p,t)=>localStorage.getItem(watchKey(p,t))==="on";
@@ -358,7 +413,7 @@ function software(){
  const existing=new Set(tracked.filter(v=>v.path).map(v=>normalized(v.path)));
  const unlinked=candidates.filter(path=>!existing.has(normalized(path)));
  main.innerHTML+=`<div class="bar">${p.tools.map(x=>toolButton(x.name,()=>go("software",{tool:x.id}),x.id===t.id?"chosen":"")).join("")}</div><div class="panel"><div class="spread"><div class="eyebrow">Registered software</div>${btn("Edit software",()=>toolForm(t))}</div><h2>${toolIcon(t.name)} ${esc(t.name)}</h2><p class="sub">${esc(t.extensions)}</p>${(t.installFolders||[]).map(f=>`<div class="row"><small>Install</small>${btn(f,()=>post("open-folder",{project:p.id,tool:t.id,path:f}),"path file-link")}</div>`).join("")}${t.folders.map(f=>`<div class="row">${btn(f,()=>post("open-folder",{project:p.id,tool:t.id,path:f}),"grow path file-link")}<small>${esc(t.folderFormats?.[pathKey(f)]?.join(", ")||t.extensions)}</small>${btn("File types",()=>folderIntake(t))}${btn("Unlink folder",async()=>{await change(p=>{const x=find(p.tools,t.id);x.folders=x.folders.filter(v=>v!==f);if(x.folderFormats)delete x.folderFormats[pathKey(f)]});render()})}</div>`).join("")}<div class="actions">${btn("+ Link folder",async()=>{const {path}=await post("pick",{kind:"folder"});if(!path)return;folderIntake(t,path)})}${t.folders.length?btn("Organize folder assets",()=>folderIntake(t))+btn("Scan folders",async()=>{const res=await post("scan",{project:p.id,tool:t.id});if(scanSignature!==sig||locationState.view!=="software")return;candidates=res.files;scanIssues=res.issues;render();toast(`${candidates.length} files found.`)},"primary")+btn(watching(p,t)?"Auto-scan on":"Auto-scan off",()=>{localStorage.setItem(watchKey(p,t),watching(p,t)?"off":"on");render();if(watching(p,t))pollFolders()}):""}</div></div>
- <div class="panel"><div class="spread"><h2>Tracked files & revisions</h2>${btn("+ Track file",async()=>{const {path}=await post("pick",{kind:"file",software:t.name});if(path)singleIntake(t,path)})}</div>${tracked.map(v=>`<div class="row"><div class="grow">${v.path?btn(v.path.split(/[\\/]/).at(-1),()=>openFile(v,false),"file-link"):esc(revisionLabel(v))}<p>${esc(v.note)}</p><small>${esc(recordName(v.record))}</small></div>${btn("View revision →",()=>openRecord(v.record,"History",{revision:v.id}))}</div>`).join("")||empty("Track a file to link it to a record.")}</div>
+ <div class="panel"><div class="spread"><h2>Tracked files & revisions</h2>${btn("+ Track file",async()=>{const {path}=await post("pick",{kind:"file",software:t.name});if(path)singleIntake(t,path)})}</div>${tracked.map(v=>`<div class="row"><div class="grow">${v.path?btn(v.path.split(/[\\/]/).at(-1),()=>openFile(v,false),"file-link"):esc(fileName(v)||revisionLabel(v))}<p>${esc(v.note)}</p><small>${esc(recordName(v.record))}</small></div>${btn("View revision →",()=>openRecord(v.record,"History",{revision:v.id}))}</div>`).join("")||empty("Track a file to link it to a record.")}</div>
  <div class="panel"><h2>Discovered files</h2><p class="sub">Scan linked folders for new files. Choose the record and parent when you track one.</p>${scanIssues.map(e=>`<p class="error">${esc(e)}</p>`).join("")}${unlinked.length?`<label for="filterFiles">Filter ${unlinked.length} paths</label><input id="filterFiles" placeholder="Filename or folder"><div id="discovered"></div>`:""}</div>`;
  if(unlinked.length){const results=()=>{const q=$("#filterFiles").value.toLowerCase(),files=unlinked.filter(f=>f.toLowerCase().includes(q));$("#discovered").innerHTML=files.slice(0,100).map(f=>`<div class="row"><div class="grow"><b>${esc(f.split(/[\\/]/).at(-1))}</b><div class="path">${esc(f)}</div></div>${aiBtn("Suggest record",()=>matchFile(t,f))}${btn("Track file",()=>singleIntake(t,f))}</div>`).join("")+(files.length>100?empty("Showing 100. Filter to narrow the list."):"")};$("#filterFiles").oninput=results;results()}
 }
@@ -374,15 +429,15 @@ async function matchFile(tool,path){
 function allProjectFiles(){
  const rows=data.projects.flatMap(p=>p.revisions.map(v=>({p,v,t:find(p.tools,v.tool),r:find(p.records,v.record)})));
  modal("Files across projects",input("globalFind","Find by project, software, asset, or file")+`<div id="globalFiles"></div>`,async()=>{},"Done");
- function list(){const q=val("globalFind").toLowerCase(),matches=rows.filter(({p,r,t,v})=>[p.name,r.name,t.name,v.path,v.label,v.note].join(" ").toLowerCase().includes(q));
- $("#globalFiles").innerHTML=matches.slice(0,120).map(({p,r,t,v})=>`<div class="row"><div class="grow"><b>${esc(r.name)}</b><p>${esc(p.name)} · ${esc(t.name)} ${esc(v.label)}</p><small class="path">${esc(v.path||v.branch)}</small></div>${btn("Open",()=>{dialog.close();locationState.project=p.id;openRecord(r.id,"History",{revision:v.id})})}</div>`).join("")||empty("No matches.")}
+ function list(){const q=val("globalFind").toLowerCase(),matches=rows.filter(({p,r,t,v})=>[p.name,r.name,t.name,v.path,fileName(v),v.label,v.note].join(" ").toLowerCase().includes(q));
+ $("#globalFiles").innerHTML=matches.slice(0,120).map(({p,r,t,v})=>`<div class="row"><div class="grow"><b>${esc(r.name)}</b><p>${esc(p.name)} · ${esc(t.name)} ${esc(v.label)}</p><small class="path">${esc(v.path||v.exampleFilename||v.branch)}</small></div>${btn("Open",()=>{dialog.close();locationState.project=p.id;openRecord(r.id,"History",{revision:v.id})})}</div>`).join("")||empty("No matches.")}
  $("#globalFind").oninput=list;list()
 }
 function searchView(){
- const p=project();main.innerHTML=head(p.name,"Find in project")+`<label for="find">Search names, notes, tools, versions and paths</label><input id="find" placeholder="Try wing fold, v007.2, or a filename"><div class="panel" id="results"></div>`;
+ const p=project();main.innerHTML=head(p.name,"Find in project")+`<label for="find">Search names, notes, tools, versions and paths</label><input id="find" placeholder="Try wing fold, v001.2, or a filename"><div class="panel" id="results"></div>`;
  const results=()=>{const q=$("#find").value.trim().toLowerCase(),rows=[];
  for(const r of p.records)if([r.name,r.description,...Object.values(r.values),...r.links.map(l=>l.note),...(r.sources||[]).flatMap(s=>[s.name,s.excerpt,s.note])].join(" ").toLowerCase().includes(q))rows.push([r.name,find(p.sections,r.section)?.name,()=>openRecord(r.id)]);
- for(const v of p.revisions)if([toolName(v.tool),v.path,v.note,v.label,v.branch,...v.comparisons.map(c=>c.text)].join(" ").toLowerCase().includes(q))rows.push([revisionLabel(v),recordName(v.record),()=>openRecord(v.record,"History",{revision:v.id})]);
+ for(const v of p.revisions)if([toolName(v.tool),v.path,fileName(v),v.note,v.label,v.branch,...v.comparisons.map(c=>c.text)].join(" ").toLowerCase().includes(q))rows.push([revisionLabel(v),recordName(v.record),()=>openRecord(v.record,"History",{revision:v.id})]);
  $("#results").innerHTML=rows.slice(0,150).map(([n,d,fn])=>`<div class="row"><div class="grow"><b>${esc(n)}</b><p>${esc(d)}</p></div>${btn("Open →",fn)}</div>`).join("")||empty("No matches.")};$("#find").oninput=results;results();$("#find").focus()
 }
 function askView(){
@@ -476,7 +531,7 @@ async function uploadPreview(file){
  return (await post("preview",{jpeg:canvas.toDataURL("image/jpeg",.88).split(",")[1]})).preview;
 }
 function newProject(){
- modal("New project",input("name","Project name","","text",true)+`<div class="fieldbox"><b>Bring your existing work</b><p>Pick your tools and connect their working folders.</p>${btn("Open setup guide →",()=>{intake=newIntake();intake.name=val("name");stash();manifest=[];dialog.close();startSetup()})}</div>`,async()=>{const key=id(),name=need("name");await change((p,state)=>state.projects.push({id:key,name,sections:productionSections(),classes:[],records:[],tools:[],revisions:[]}));locationState={project:key,view:"home"};render()},"Create empty project")
+ location.assign("?view=welcome")
 }
 function schemaEditor(fields){
  const list=structuredClone(fields||[]),past=[],future=[],types=["Text","Number","File","URL","Reference"];
@@ -651,7 +706,11 @@ function revisionForm(existing,defaults={}){
    if(defaults.fork&&!hit&&p.revisions.some(v=>v.record===owner&&v.tool===x.tool&&v.branch===branch))throw Error("Give the new branch its own name.");
    if(original){const v=find(p.revisions,x.id);moveTracked(p,v,owner);Object.assign(v,x)}else p.revisions.push(x);
    if(defaults.insertTargets)for(const targetId of defaults.insertTargets)find(p.revisions,targetId).parent=x.id;
- });openRecord(owner,"History",{revision:x.id})
+ });
+ if(defaults.fork&&visualTour?.kind==="branches"&&visualTour.stage==="fork"){
+   visualTour.branchSource=parent;visualTour.branchCreated=x.id;visualTour.stage="connect"
+ }
+ openRecord(owner,"History",{revision:x.id})
  });
  let customBranch=false;
  $("#branch").oninput=()=>{customBranch=true};
@@ -692,9 +751,9 @@ function keyForm(){
  modal(hasKey?"Meta AI settings":"Connect Meta AI",`<div class="meta-connect">
    <p class="meta-intro">Trace a playtest screenshot back to likely source files, or pinpoint a change between two revisions.</p>
    <div class="meta-features">
-     <article><div class="meta-example trace-example" aria-hidden="true"><img src="/art/playtest.jpg" alt=""><span class="subject-frame"></span><span class="example-tag">PLAYTEST FRAME</span></div>
+     <article><div class="meta-example trace-example" aria-hidden="true"><img src="/art/raptor-frame.jpg" alt=""><span class="subject-frame"></span><span class="example-tag">PLAYTEST FRAME</span></div>
      <div class="meta-feature-copy"><small>SAM 3.1 + Muse Spark 1.3</small><h3>Trace a screenshot</h3><p>Click a subject to find likely matches in its revision history.</p></div></article>
-     <article><div class="meta-example diff-example" aria-hidden="true"><img src="/art/lantern-narrow.jpg" alt=""><img src="/art/lantern-wide.jpg" alt=""><span class="example-version">v007.1</span><span class="example-version after">v007.2</span><span class="example-tag">BEFORE / AFTER</span></div>
+     <article><div class="meta-example diff-example" aria-hidden="true"><img src="/art/gate-blockout.jpg" alt=""><img src="/art/gate-lockdown.jpg" alt=""><span class="example-version">v001</span><span class="example-version after">v002</span><span class="example-tag">BEFORE / AFTER</span></div>
      <div class="meta-feature-copy"><small>Muse Spark 1.3</small><h3>Compare revisions</h3><p>Mark visible changes on both previews and save them with the pair.</p></div></article>
    </div>
    <p class="meta-import"><b>Organize an import</b> Review suggested asset names and disciplines when you scan a folder.</p>
@@ -781,15 +840,15 @@ let guide;
 function startSetup(){go("setup")}
 const guideOnLaunch="gdb.guide.onLaunch";
 const drills=[
- {title:"Track a source file",line:"This Blender file needs a home. Pick the asset it belongs to.",file:"harbor_lantern_v007.2.blend",picks:["Harbor lantern","Tide bell"],art:["lantern-wide","bell"],answer:0,tip:"Match the filename to its asset.",success:"Linked. The lantern record now knows which Blender file made it."},
+ {title:"Track a source file",line:"This Blender file needs a home. Pick the asset it belongs to.",file:"lantern_v001.2.blend",picks:["Harbor lantern","Tide bell"],art:["lantern-wide","bell"],answer:0,tip:"Match the filename to its asset.",success:"Linked. The lantern record now knows which Blender file made it."},
  {title:"Read a revision",line:"Look at these two previews. Which note describes the visible change?",picks:["The handle is wider","The glass is blue"],answer:0,tip:"Compare the metal handle above the lamp.",success:"Exactly. The visible change and the artist’s reason can be saved separately."},
- {title:"Trace the handoff",line:"The texture pass used the wide-handle mesh. Pick its exact source revision.",file:"brass_wear_v001.spp",picks:["Blender v007.1","Blender v007.2"],art:["lantern-narrow","lantern-wide"],answer:1,tip:"Follow the version you just compared.",success:"Handoff recorded. Painter v001 points back to Blender v007.2."}
+ {title:"Trace the handoff",line:"The texture pass used the wide-handle mesh. Pick its exact source revision.",file:"lantern_v001.spp",picks:["Blender v001.1","Blender v001.2"],art:["lantern-narrow","lantern-wide"],answer:1,tip:"Follow the version you just compared.",success:"Handoff recorded. Painter v001 points back to Blender v001.2."}
 ];
 let introReply="",introPending=false,introAttempted=false;
 function askCoach(lesson,question){return post("ai",{project:project().id,mode:"coach",lesson,question})}
 function chatWithStudioAssistant(){
- const lesson=!locationState.practice?["Name the game to create or continue a project.","Pick a role and adjust disciplines.","Adjust suggested software per discipline.","Choose working folders and describe what you do in each tool.","Review asset names, categories, file notes and suggested branches."][getIntake().step]:(drills[guide.practice-1]?.line||"Introduce the app and the practice sequence.");
- modal("Ask the assistant",`<div class="coach-identity">${graphMark()}<div><b>Studio assistant</b><br><small>Live coaching with Meta Muse Spark</small></div></div>${hasKey?"":input("coachKey","Meta Model API key · this session","","password")}${area("coachQuestion","What would you like help with?")}<div class="actions">${btn("Ask →",async()=>{
+ const lesson=!locationState.practice?["Name the game to create or continue a project.","Pick a role and adjust disciplines.","Adjust suggested software per discipline.","Choose working folders and describe what you do in each tool.","Review asset names, categories, file notes and suggested branches."][locationState.view==="welcome"?0:getIntake().step]:(drills[guide.practice-1]?.line||"Introduce the app and the practice sequence.");
+ modal("Ask the assistant",`<div class="coach-identity">${graphMark()}<div><b>Studio assistant</b><br><small>Live coaching with Meta Muse Spark</small></div></div>${hasKey?"":input("coachKey","Meta Model API key · this session","","password")}${area("coachQuestion","What would you like help with?")}<div class="actions">${aiBtn("Ask →",async()=>{
  const q=need("coachQuestion");if(!hasKey){const k=need("coachKey");hasKey=(await post("key",{key:k})).hasKey;$("#coachKey").value=""}
  $("#coachAnswer").textContent="Thinking…";
  try{const res=await askCoach(lesson,q);if($("#coachAnswer"))$("#coachAnswer").textContent=res.text}catch(err){if($("#coachAnswer"))$("#coachAnswer").textContent=err.message}
@@ -815,7 +874,7 @@ function practiceView(n){
    guide.passed=true;render()
  }
  const cards=d.picks.map((label,i)=>`<button type="button" class="drill-pick ${guide.passed&&i===d.answer?"matched":""}" ${guide.passed?"disabled":""} data-a="${bind(()=>choose(i,$("#practicePick"+i)))}" id="practicePick${i}">${d.art?image("/art/"+d.art[i]+".jpg","",label):""}<span>${esc(label)}</span></button>`).join("");
- out.innerHTML=`<div class="practice-board"><div class="eyebrow">Practice bench · ${n} of 3</div><h2>${esc(d.title)}</h2><p>${esc(d.line)}</p>${d.file?`<div class="bench-file">${toolIcon(n===1?"Blender":"Substance Painter")} ${esc(d.file)}</div>`:""}${n===2?`<div class="bench-comparison">${["lantern-narrow","lantern-wide"].map((art,i)=>`<figure>${image("/art/"+art+".jpg","","Handle profile")}<figcaption>Blender v007.${i+1}</figcaption></figure>`).join("")}</div>`:""}<div class="drill-choices">${cards}</div>${guide.passed?`<div class="practice-result" role="status">✓ ${esc(d.success)}</div><div class="actions">${btn(n===3?"Return to project →":"Next exercise →",advancePractice,"primary")}</div>`:""}</div>`;
+ out.innerHTML=`<div class="practice-board"><div class="eyebrow">Practice bench · ${n} of 3</div><h2>${esc(d.title)}</h2><p>${esc(d.line)}</p>${d.file?`<div class="bench-file">${toolIcon(n===1?"Blender":"Substance Painter")} ${esc(d.file)}</div>`:""}${n===2?`<div class="bench-comparison">${["lantern-narrow","lantern-wide"].map((art,i)=>`<figure>${image("/art/"+art+".jpg","","Handle profile")}<figcaption>Blender v001.${i+1}</figcaption></figure>`).join("")}</div>`:""}<div class="drill-choices">${cards}</div>${guide.passed?`<div class="practice-result" role="status">✓ ${esc(d.success)}</div><div class="actions">${btn(n===3?"Return to project →":"Next exercise →",advancePractice,"primary")}</div>`:""}</div>`;
 }
 let priorMeter=0;
 function animateMeter(){
@@ -833,7 +892,7 @@ function guideBanner(){
  const stops=["Briefing","Match a file","Compare","Trace a handoff"],index=step;
  const percent=Math.round((step===0?0:step-1+(guide.passed?1:0))/3*100);
 
- return `<div class="guide-toolbar"><span class="studio-brand">${graphMark()} Game Dev Brain</span><div class="actions"><label class="launch-switch"><input type="checkbox" id="guideOnLaunch" ${localStorage.getItem(guideOnLaunch)!=="off"?"checked":""}> Guide me on launch</label>${btn("Back to project",()=>go("home"))}${btn("Ask the assistant",chatWithStudioAssistant)}</div></div>
+ return `<div class="guide-toolbar">${homeBrand("studio-brand")}<div class="actions">${btn("Open Project Library",()=>go("home"))}${aiBtn("Ask the assistant",chatWithStudioAssistant)}</div></div>
  <header class="practice-header">${graphMark()}<small class="eyebrow">Practice / ${esc(stops[index])}</small><h1>${esc(scene.title)}</h1><p id="pipIntro">${esc(scene.line)}</p></header>
  <div class="journey"><div class="spread"><strong>Your studio journey</strong><small>${percent}% complete</small></div><div class="journey-meter" role="progressbar" aria-label="Onboarding progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><i style="--progress:${percent}%"></i></div><div class="journey-stops">${stops.map((n,i)=>`<span class="${i===index?"now":i<index?"past":""}" ${i===index?'aria-current="step"':""}><b>${i<index?"✓":"0"+(i+1)}</b> ${n}</span>`).join("")}</div></div><div id="setupBody"></div>`;
 }
@@ -866,7 +925,7 @@ document.addEventListener("pointerdown",e=>{
 });
 function setupView(){
  main.innerHTML=guideBanner();animateMeter();
- $("#guideOnLaunch").onchange=e=>{localStorage.setItem(guideOnLaunch,e.target.checked?"on":"off");render()};practiceView(guide.practice)
+ practiceView(guide.practice)
 }
 const pathKey=s=>s.replaceAll("\\","/").toLowerCase();
 function fileGuess(path){const info=seriesInfo(path,"");return {name:info.asset,label:info.label}}
@@ -876,14 +935,12 @@ async function boot(){
  try{locationState=JSON.parse(localStorage.getItem("gdb.view"))}catch{}
  if(!locationState||!find(data.projects,locationState.project))locationState={project:data.projects[0].id,view:"home"};
  const address=new URL(location.href),demo=address.searchParams.get("demo");
- if(demo==="trace"||demo==="compare"){
-   const trace=demo==="trace",p=find(data.projects,trace?"canopy":"brine"),asset=p&&find(p.records,trace?"bird":"lamp");
+ const page=address.searchParams.get("view");
+ if(page==="help"||page==="welcome"){locationState={project:project().id,view:page};render();return}
+ if(demo==="branches"||demo==="trace"||demo==="compare"){
    address.searchParams.delete("demo");history.replaceState(null,"",address);
-   if(asset&&(trace||["l71","l72"].every(id=>find(p.revisions,id)?.record===asset.id))){
-     locationState.project=p.id;openRecord(asset.id,trace?"History":"Compare",trace?{}:{before:"l71",after:"l72"});
-     if(trace)traceScreenshot(asset,p.revisions.filter(v=>v.record===asset.id),true);
-     return
-   }
+   if(demo==="branches"){locationState={project:project().id,view:"branch-choice"};render();return}
+   if(startVisualTour(demo))return;
    toast("This example is missing from this library.")
  }
  if(localStorage.getItem(guideOnLaunch)!=="off"){locationState.view="setup";delete locationState.practice}

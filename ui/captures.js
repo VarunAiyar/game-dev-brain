@@ -1,9 +1,11 @@
 "use strict";
 function captureGuide(){
- modal("Capture from Blender",`<p>In Blender Preferences → Add-ons, choose Install from Disk and enable <strong>Game Dev Brain – Capture checkpoint</strong>.</p>
- <a href="/addon/game_dev_brain.py" download="game_dev_brain.py">Download Blender add-on</a>
- <p>Save your .blend, hover the 3D View, then press <kbd>Ctrl + Alt + Shift + C</kbd>. You can also use View → Game Dev Brain: Capture Checkpoint.</p>
- <p>Captures stay local. With a Meta key connected, comparable viewport images are sent to Meta for an AI note and a SAM outline. Artist notes stay separate.</p>`,()=>{},"Done")
+ modal("Capture from Blender",`<p>Put a viewport screenshot on the revision it came from. Keep Game Dev's Best Friend running while you work.</p>
+ <ol class="capture-steps">
+ <li><strong>Install the add-on once</strong><p><a href="/addon/game_dev_brain.py" download="game_devs_best_friend.py">Download Blender add-on ↓</a></p><p>In Blender, choose Preferences → Add-ons → Install from Disk. Select the downloaded file and enable Game Dev's Best Friend.</p></li>
+ <li><strong>Capture a saved .blend</strong><p>Hover over the 3D View and press <kbd>Ctrl + Alt + Shift + C</kbd>, or use View → Game Dev's Best Friend: Capture Checkpoint.</p></li>
+ <li><strong>See what changed</strong><p>Capture again after an edit. Open the revision’s Blender checkpoints to see both viewports.</p></li></ol>
+ <p class="sub">For AI notes, connect Meta AI. For outlines, run <b>Setup Blender Capture.cmd</b> once in the app folder. Analysis sends viewport images to Meta.</p>`,()=>{},"Done")
 }
 function showCapture(parent,v,compact=false){
  const list=v?.checkpoints;if(!list?.length)return;
@@ -49,7 +51,7 @@ function showCapture(parent,v,compact=false){
 let checkingCaptures=false;
 async function refreshCaptureGraph(){
  if(checkingCaptures||document.hidden||!data||busy||dialog.open)return;
- if(!["home","section"].includes(locationState.view)&&(locationState.view!=="record"||locationState.tab!=="History"))return;
+ if(!["home","section","projects"].includes(locationState.view)&&(locationState.view!=="record"||locationState.tab!=="History"))return;
  const clean=()=>!busy&&!dialog.open&&!document.querySelector("#quickNote,.graph-marquee:not([hidden]),.rev-card.moving,.graph-scroll.panning")&&(!$("#inlineNote")||$("#inlineNote").value===$("#inlineNote").defaultValue);
  if(!clean())return;
  checkingCaptures=true;
@@ -59,8 +61,10 @@ async function refreshCaptureGraph(){
    const fresh=await fetch("/api/state").then(r=>r.json());
    if(version!==current||screen!==locationState||!clean())return;
    const existing=find(fresh.state.projects,screen.project);
-   if(!existing||(screen.view==="record"&&!find(existing.records,screen.record)))return;
-   ({state:data,version,token,hasKey}=fresh);editHistory=fresh.history;render();
+   if(existing&&screen.view==="record"&&!find(existing.records,screen.record))return;
+   ({state:data,version,token,hasKey}=fresh);editHistory=fresh.history;
+   if(!existing){go("projects");return}
+   render();
    const latest=check.latest,target=latest&&find(data.projects,latest.project);
    if(target&&find(target.revisions,latest.revision)?.checkpoints?.some(c=>c.id===latest.id)&&fresh.history.undo?.startsWith("Blender checkpoint")){
      toast("Blender captured · "+latest.label+" ");

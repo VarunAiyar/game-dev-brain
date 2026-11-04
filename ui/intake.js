@@ -89,28 +89,36 @@ function welcomeSketches(){
    <path class="lantern-glass" d="m226 39 17 0 2 17-21 1Z"/><path d="m222 39 5-6h14l5 6Zm0 18h25m-20-24c-8-19 21-21 16-1m-14 10 11 11m0-12-11 12"/></g><text class="tool-caption" x="204" y="96">IN THE BUILD</text>`)}
  </div></div>`
 }
-function studioIntake(){
- getIntake();if(intake.project)locationState.project=intake.project;const s=intake,step=s.step,labels=["Game","Disciplines","Software","Folders","Assets"];
+function studioIntake(welcome=false){
+ const saved=getIntake(),s=welcome&&saved.step?newIntake():saved,step=s.step;
+ if(!welcome&&s.project)locationState.project=s.project;
+ const labels=["Game","Disciplines","Software","Folders","Assets"];
  const out=main;out.classList.toggle("studio-arrival",out.dataset.chapter!==String(step));out.dataset.chapter=String(step);
- const controls=`<header class="guide-toolbar"><span class="studio-brand">${graphMark()} Game Dev Brain</span><div class="actions"><label class="launch-switch"><input type="checkbox" id="guideOnLaunch" ${localStorage.getItem(guideOnLaunch)!=="off"?"checked":""}> Guide me on launch</label>${localStorage.getItem(guideOnLaunch)==="off"?btn("Open library",()=>go("home")):""}${btn("Ask the assistant",chatWithStudioAssistant)}</div></header>`;
+ const controls=`<header class="guide-toolbar">${homeBrand("studio-brand")}<div class="actions">${welcome&&saved.step?btn("Resume setup",startSetup):""}${btn("Open Project Library",()=>go("home"))}${aiBtn("Ask the assistant",chatWithStudioAssistant)}</div></header>`;
  out.innerHTML=controls+`<div class="journey"><div class="journey-stops">${labels.map((n,i)=>`<span class="${i===step?"now":i<step?"past":""}"><b>${i<step?"✓":i+1}</b> ${n}</span>`).join("")}</div><div class="journey-meter" role="progressbar" aria-label="Project setup" aria-valuenow="${step*25}" aria-valuemin="0" aria-valuemax="100"><i style="--progress:${step*25}%"></i></div></div><section id="studioChat"></section>`;
- $("#guideOnLaunch").onchange=e=>{localStorage.setItem(guideOnLaunch,e.target.checked?"on":"off");render()};animateMeter();
+ animateMeter();
  const box=$("#studioChat");
  if(!step){
-   box.innerHTML=`<div class="chat-welcome"><div class="welcome-copy"><small class="welcome-label">${graphMark()} Studio setup</small><h1>Hey there! What <em class="welcome-game">game</em> are you working on?</h1><form id="gameChat"><input id="gameName" autocomplete="off" aria-label="Game name" placeholder="Type your game’s name…" value="${esc(s.name)}" required maxlength="180"><button class="primary" aria-label="Send game name">Send →</button></form><small>Give your working files, experiments and exports a shared history.</small></div>${welcomeSketches()}<aside class="return-note"><svg viewBox="0 0 44 44" aria-hidden="true" focusable="false"><path d="m6 9 29-2 2 30-29 2zM7 16l28-2M13 5v7m13-8v7m-12 9 4-.4m4-.3 5-.4m-12 7 4-.4m3-.2 5-.4"/><path d="m22 33 3 2 6-8"/></svg><span><small>Six weeks later</small>Where did I leave off?</span></aside></div>`;
+   box.innerHTML=`<div class="chat-welcome"><div class="welcome-copy"><small class="welcome-label">${graphMark()} Studio setup</small><h1>Hey there! What <em class="welcome-game">game</em> are you working on?</h1><form id="gameChat"><input id="gameName" autocomplete="off" aria-label="Game name" placeholder="Type your game's name to create a new Project" value="${esc(s.name)}" required maxlength="180"><button class="primary" aria-label="Send game name">Send →</button></form><small>Give your working files, experiments and exports a shared history.</small><a class="how-link" href="?view=help">How Game Dev's Best Friend helps <span aria-hidden="true">→</span></a></div>${welcomeSketches()}<aside class="return-note"><svg viewBox="0 0 44 44" aria-hidden="true" focusable="false"><path d="m6 9 29-2 2 30-29 2zM7 16l28-2M13 5v7m13-8v7m-12 9 4-.4m4-.3 5-.4m-12 7 4-.4m3-.2 5-.4"/><path d="m22 33 3 2 6-8"/></svg><span><small>Six weeks later</small>Where did I leave off?</span></aside></div>`;
+   const nameField=$("#gameName");
+   nameField.value=sessionStorage.getItem("gdb.welcomeName")??s.name;
+   nameField.oninput=()=>sessionStorage.setItem("gdb.welcomeName",nameField.value);
    $("#gameChat").onsubmit=async e=>{e.preventDefault();const name=need("gameName"),matches=data.projects.filter(p=>p.name.toLowerCase()===name.toLowerCase());if(matches.length>1){toast("More than one project uses this name. Use a unique project name.");return}
     const p=matches[0],projectId=p?.id||id();
     try{lastCommand="create project";if(!p)await change((_,state)=>state.projects.push({id:projectId,name,sections:[],classes:[],records:[],tools:[],revisions:[]}));
+    if(s!==intake){intake=s;manifest=[];intakeIssues=[]}
+    sessionStorage.removeItem("gdb.welcomeName");
     s.name=name;s.project=projectId;s.created=!p;locationState.project=projectId;
+    if(new URLSearchParams(location.search).get("branchTour")==="own")s.branchTour=true;
     if(p){s.stages=activeDisciplines(p).map(name=>categoryLabels.indexOf(name));s.apps=Object.fromEntries(s.stages.map(i=>[i,disciplineTools(p,i)]))}
-    toStep(1)}catch(err){toast(err.message)}
+    if(welcome){s.step=1;stash();go("setup");window.scrollTo(0,0)}else toStep(1)}catch(err){toast(err.message)}
    };return
  }
  const titles=["","Which parts of game development do you handle?","Which tools do you actually use?","Where do you keep this game’s work?","Does this look like your asset library?"];
  box.innerHTML=`<div class="intake-heading"><span class="chip receipt" role="status">${esc(s.name)} ${step===1?(s.created?"· Project created ✓":"· Project opened ✓"):""}</span><h1>${titles[step]}</h1></div><div id="intakePanel"></div>`;
  const panel=$("#intakePanel");
  if(step===1){
-   panel.innerHTML=`<p>Start with a role, then adjust the disciplines that apply.</p><div class="role-grid">${roles.map(([icon,title,sub,stages])=>`<button class="role-card ${s.role===title?"chosen":""}" data-a="${bind(()=>{s.role=title;s.stages=stages.slice();stash();render()})}"><strong>${icon} ${esc(title)}</strong><small>${esc(sub)}</small></button>`).join("")}</div><div class="bar">${setupStages.map(([stage],i)=>toggleChip(stage,s.stages.includes(i),()=>{s.role="";s.stages=s.stages.includes(i)?s.stages.filter(n=>n!==i):[...s.stages,i];stash();render()})).join("")}</div><div class="actions">${btn("Back to game",()=>{const currentName=s.name;intake=newIntake();intake.name=currentName;manifest=[];toStep(0)})}${btn("Choose software →",()=>{if(!s.stages.length)throw Error("Select at least one discipline.");for(const i of s.stages)if(!s.apps[i])s.apps[i]=typical[i].slice();toStep(2)},"primary")}</div>`;
+   panel.innerHTML=`<p>Start with a role, then adjust the disciplines that apply.</p><div class="role-grid">${roles.map(([icon,title,sub,stages])=>`<button class="role-card ${s.role===title?"chosen":""}" data-a="${bind(()=>{s.role=title;s.stages=stages.slice();stash();render()})}"><strong>${icon} ${esc(title)}</strong><small>${esc(sub)}</small></button>`).join("")}</div><div class="bar">${setupStages.map(([stage],i)=>toggleChip(stage,s.stages.includes(i),()=>{s.role="";s.stages=s.stages.includes(i)?s.stages.filter(n=>n!==i):[...s.stages,i];stash();render()})).join("")}</div><div class="actions">${btn("Back to game",()=>{const currentName=s.name,branchTour=s.branchTour;intake=newIntake();intake.name=currentName;intake.branchTour=branchTour;manifest=[];toStep(0)})}${btn("Choose software →",()=>{if(!s.stages.length)throw Error("Select at least one discipline.");for(const i of s.stages)if(!s.apps[i])s.apps[i]=typical[i].slice();toStep(2)},"primary")}</div>`;
  }else if(step===2){
    panel.innerHTML=`<p>Common tools are checked. Keep as many as you use for each selected discipline.</p>${s.stages.map(i=>`<div class="fieldbox"><h3>${esc(setupStages[i][0])}</h3><div class="bar">${[...new Set([...setupStages[i][2].map(x=>x[0]),...(s.apps[i]||[])])].map(n=>`<button class="${s.apps[i].includes(n)?"chosen":""}" aria-pressed="${s.apps[i].includes(n)}" data-a="${bind(()=>{s.apps[i]=s.apps[i].includes(n)?s.apps[i].filter(t=>t!==n):[...s.apps[i],n];stash();render()})}">${toolIcon(n)} ${esc(n)} ${s.apps[i].includes(n)?"✓":""}</button>`).join("")}${btn("+ Other tool",()=>modal("Add software",input("toolName","Tool name","","text",true)+input("toolExt","File extensions (comma-separated)","","text",true),async()=>{const n=need("toolName");s.sources[n]={...s.sources[n],ext:need("toolExt")};s.apps[i]=[...new Set([...s.apps[i],n])];stash();render()}))}</div></div>`).join("")}<div class="actions">${btn("Back",()=>toStep(1))}${btn("Connect folders →",()=>{if(!intakeNames().length)throw Error("Select a tool first.");toStep(3)},"primary")}</div>`
  }else if(step===3){
@@ -236,7 +244,7 @@ function assetClass(p,r,name){
 }
 async function finishIntake(){
  if(manifest.some(g=>g.selected&&pendingCovers.has(g)))throw Error("Wait for the preview image to finish loading.");
- let first;
+ const ownTour=!!intake.branchTour,projectId=project().id;let first;
  await change(p=>{
    const paths=new Set(p.revisions.filter(v=>v.path).map(v=>pathKey(v.path)));
    for(const g of manifest.filter(g=>g.selected)){
@@ -251,5 +259,112 @@ async function finishIntake(){
      connectMilestones(p,r.id,g.tool,g.discipline,g.format);
    }
  });
- localStorage.removeItem(intakeSlot);intake=null;manifest=[];if(first)openRecord(first.record,"History",{revision:first.id});else go("home");toast("Your studio is ready.")
+ localStorage.removeItem(intakeSlot);intake=null;manifest=[];
+ if(ownTour)startOwnBranchTour(projectId);else if(first)openRecord(first.record,"History",{revision:first.id});else go("home");
+ toast("Your studio is ready.")
+}
+
+function homeBrand(cls){
+ return `<a class="${cls} home-brand" href="?view=welcome" aria-label="Game Dev's Best Friend opening page">${graphMark()}<b>Game Dev's Best Friend</b></a>`
+}
+
+function branchExample(){
+ const p=find(data.projects,"brine");
+ const asset=p&&find(p.records,"lamp");
+ return asset&&p.revisions.some(v=>v.record===asset.id)?asset:null
+}
+function startBranchExample(){
+ const asset=branchExample();
+ if(!asset)return false;
+ return startBranchTour(asset)
+}
+function branchChoiceView(){
+ const available=branchExample();
+ main.innerHTML=`<article class="branch-choice"><header class="story-nav">${homeBrand("studio-brand")}<a href="?view=help#examples">← All examples</a></header>
+ <div class="branch-choice-heading"><small>BRANCH EDITOR</small><h1>How would you like to learn?</h1><p>Explore an existing history or start organizing your own game.</p></div>
+ <div class="branch-choices"><section><div class="choice-icon">${graphMark()}</div><h2>Use an example project</h2><p>Explore a ready-made asset library and practice with its revision graph.</p>${available?btn("Start with the example →",()=>startBranchExample(),"primary"):"<small>The example asset is unavailable in this library.</small>"}</section>
+ <section><div class="choice-icon" aria-hidden="true">✦</div><h2>Create your own project</h2><p>Set up your game, then get a short guide to classes, assets and their history.</p><a href="?view=welcome&amp;branchTour=own">Create my project →</a></section></div></article>`;
+}
+
+function storyFileCard(x,y,title,caption,logo,width=188){
+ return `<g class="file-card" transform="translate(${x} ${y})">
+   <rect width="${width}" height="58" rx="8"/>
+   <image href="/art/logo-${logo}.jpg" x="10" y="10" width="18" height="18"/>
+   <text x="35" y="24">${title}</text><text class="file-caption" x="11" y="45">${caption}</text></g>`
+}
+function storyMap(description,paths,cards){
+ return `<svg class="file-map" viewBox="0 0 500 330" role="img" aria-label="${description}">
+   <g class="map-lines">${paths.map(d=>`<path d="${d}"/>`).join("")}</g>${cards.join("")}</svg>`
+}
+let storyObserver;
+function showHelpStory(){
+ const chapters=[
+  {label:"Blender versions",title:"You start with v001.",copy:[
+   "As indie game devs, we’ve all been there. You’re creating an asset in Blender. You save it as v001 and work your way up to v007. Then you try a few ideas in v007.1, v007.2, and v007.3.",
+   "A few weeks later, can you remember which version changed the shape, and which one was ready for the game?"
+  ],art:storyMap("Your Blender file goes from v001 to v007, then branches into three experiments.",[
+   "M122 165H175","M287 165H346","M312 165V73H346","M312 165V257H346"
+  ],[
+   storyFileCard(10,136,"v001","First save","blender",112),storyFileCard(175,136,"v007","Original mesh","blender",112),
+   storyFileCard(346,44,"v007.1","Silhouette test","blender",144),storyFileCard(346,136,"v007.2","Detail study","blender",144),
+   storyFileCard(346,228,"v007.3","Alternate shape","blender",144)
+  ])},
+  {label:"Working folders",title:"You open another app. Back to v001.",copy:[
+   "You take one of those versions into Substance Painter and save your first texture pass as v001. Later, you want to sculpt some extra detail in ZBrush. That file starts at v001 too.",
+   "Each app has its own folder. Which Blender version did you paint? Which one did you sculpt?"
+  ],art:storyMap("The Blender mesh, Painter texture project and ZBrush sculpt each have their own file and folder.",[],[
+   storyFileCard(23,35,"model_v007.1.blend","D:/Blender/Projects","blender"),
+   storyFileCard(279,133,"model_v001.spp","E:/Painter/Projects","painter"),
+   storyFileCard(67,236,"model_v001.ztl","D:/ZBrush/Tools","zbrush")
+  ])},
+  {label:"Asset history",title:"Keep the trail with your asset.",copy:[
+   "In Game Dev's Best Friend, you can put those files under one asset in your game project. The files stay in the folders where you work.",
+   "Connect the Painter file to the Blender revision you painted. Give your sculpt its own branch. Leave a quick note on a version so you’ll remember why you made it."
+  ],art:storyMap("One asset record connects a Blender revision to the texture project and sculpt that used it.",[
+   "M125 87V144","M219 173H248V87H280","M248 173V259H280"
+  ],[
+   storyFileCard(31,29,"model_v007.blend","Modeling · Main","blender"),
+   storyFileCard(31,144,"model_v007.1.blend","Note · Taller silhouette","blender"),
+   storyFileCard(280,58,"model_v001.spp","Texturing","painter"),
+   storyFileCard(280,230,"model_v001.ztl","Sculpting","zbrush")
+  ])},
+  {label:"Compare",title:"Which version do you want to use?",copy:[
+   "Unsure what changed between two Blender saves or other project files? Select the two revisions in Compare.",
+   "Muse Spark looks at their saved previews side by side, marks visible differences, and drafts a comparison note. You can edit it and save it with the pair."
+  ],art:`<div class="story-pair">
+   <figure><div class="pair-snapshot"><img src="/art/raptor-crest.jpg" alt="Model preview with a tall orange crest"><i class="review-region"></i></div><figcaption>raptor_v001.1.blend</figcaption></figure>
+   <figure><div class="pair-snapshot"><img src="/art/raptor-armor.jpg" alt="Model preview with a plated skull and spikes"><i class="review-region"></i></div><figcaption>raptor_v001.2.blend</figcaption></figure>
+   <div class="story-finding"><b>Example comparison note</b>The tall crest in v001.1 gives way to a plated head in v001.2.</div></div>`},
+  {label:"Screenshot trace",title:"Which file did you use in the game?",copy:[
+   "You see an asset in your game and want to work on it again. Take a screenshot and click the asset. SAM isolates it, then Muse Spark compares that crop with the revision previews you choose.",
+   "Open a likely match in the graph. Follow its branch to check for newer saves and read the notes before you open a file."
+  ],art:`<div class="story-trace"><figure><img src="/art/raptor-frame.jpg" alt="The asset in a playtest screenshot, outlined for comparison"><i class="trace-region"></i></figure><div class="story-candidates">${[["scout","v001"],["crest","v001.1 · Likely match"],["armor","v001.2"]].map(([art,v])=>`<figure><img src="/art/raptor-${art}.jpg" alt=""><figcaption>${v}</figcaption></figure>`).join("")}</div></div>`}
+ ];
+ const demos=[
+  ["branches","Branch editor","Explore version branches, quick notes, and connections between project files.",true],
+  ["trace","Trace a screenshot","Select an asset in a game screenshot and find a likely source revision.",caseAvailable(visualCases.trace)],
+  ["compare","Compare revisions","Compare two saved previews and review the visible changes.",caseAvailable(visualCases.compare)]
+ ];
+ const progress=i=>[i+1,chapters.length].map(n=>String(n).padStart(2,"0")).join(" / ");
+ main.innerHTML=`<article class="help-story"><header class="story-nav">${homeBrand("studio-brand")}<a href="#examples">Skip to examples ↓</a></header>
+ <h1>How Game Dev's Best Friend helps</h1>
+ <div class="story-layout"><div class="story-script">${chapters.map((c,i)=>`<section class="story-chapter" id="story-${i+1}" data-chapter="${i}"><small>${progress(i)} &nbsp; ${c.label}</small><h2>${c.title}</h2>${c.copy.map(line=>`<p>${line}</p>`).join("")}${i===0?'<a class="story-next" href="#story-2">Follow the files ↓</a>':""}<div class="inline-scene">${c.art}</div></section>`).join("")}</div>
+ <div class="story-sticky" aria-hidden="true"><div class="story-board" data-scene="0"><div class="board-top"><span>Your asset</span><b>${chapters[0].label}</b></div><div class="scene-stack">${chapters.map((c,i)=>`<div class="scene-layer${i===0?" current":""}">${c.art}</div>`).join("")}</div><div class="board-foot"><span>${progress(0)}</span><div class="story-ticks">${chapters.map((_,i)=>`<i class="${i===0?"past":""}"></i>`).join("")}</div></div></div></div></div>
+ <section class="story-examples" id="examples"><small>Hands-on</small><h2>Explore the features</h2><div class="story-options">${demos.map(([kind,title,line,available],i)=>`<article><small>0${i+1} · ${["Local editor","SAM + Muse Spark","Muse Spark"][i]}</small><h3>${title}</h3><p>${line}</p>${available?`<a href="?demo=${kind}">Open example <span aria-hidden="true">↗</span><span class="sr-only"> · ${title}</span></a>`:"<small>Example asset unavailable in this library</small>"}</article>`).join("")}</div><a class="story-home" href="?view=welcome">← Back to homepage</a></section></article>`;
+ const board=main.querySelector(".story-board"),steps=[...main.querySelectorAll(".story-chapter")];
+ const update=()=>{
+   const threshold=innerHeight*.52;
+   const active=steps.reduce((current,step,i)=>step.getBoundingClientRect().top<=threshold?i:current,0);
+   if(board.dataset.scene===String(active))return;
+   board.dataset.scene=String(active);
+   board.querySelectorAll(".scene-layer").forEach((layer,i)=>layer.classList.toggle("current",i===active));
+   board.querySelectorAll(".story-ticks i").forEach((tick,i)=>tick.classList.toggle("past",i<=active));
+   board.querySelector(".board-top b").textContent=chapters[active].label;
+   board.querySelector(".board-foot span").textContent=progress(active)
+ };
+ // The story has its own page URL. Observing chapter edges keeps scrolling native.
+ storyObserver=new IntersectionObserver(update,{rootMargin:"-50% 0px -48% 0px",threshold:0});
+ steps.forEach(step=>storyObserver.observe(step));update();
+ const anchor=document.getElementById(location.hash.slice(1));
+ if(anchor&&main.contains(anchor))requestAnimationFrame(()=>anchor.scrollIntoView())
 }

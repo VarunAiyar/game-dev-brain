@@ -1,4 +1,4 @@
-"""Local Game Dev Brain server. Python 3.10+, standard library only."""
+"""Local Game Dev's Best Friend server. Python 3.10+, standard library only."""
 import argparse
 import base64
 import json
@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from sample import example
+from sample import example, install_visual_demo, upgrade_example_names
 import capture_routing
 import capture_vision
 
@@ -93,6 +93,20 @@ def initialize():
             if not fresh:
                 conn.execute("INSERT INTO edits(direction,label,body) VALUES ('undo','production sections',?)",(body,))
             conn.execute("UPDATE workspace SET body=?, version=version+? WHERE id=1",(json.dumps(state),0 if fresh else 1))
+        add_examples = conn.execute("INSERT OR IGNORE INTO upgrades VALUES ('guided-visual-examples-v1')").rowcount
+        rename_examples = conn.execute("INSERT OR IGNORE INTO upgrades VALUES ('example-filenames-v1')").rowcount
+        if (add_examples or rename_examples) and not fresh:
+            stock = {(p["id"], v["id"]):v for p in example()["projects"] for v in p["revisions"]}
+            # Undo restores whole snapshots. Keep the example available across unrelated edits.
+            for table in ("workspace", "edits"):
+                for key, body in conn.execute(f"SELECT id,body FROM {table}").fetchall():
+                    state = json.loads(body)
+                    changed = [install_visual_demo(p) for p in state["projects"]] if add_examples else []
+                    if rename_examples:
+                        changed.extend(upgrade_example_names(p, stock) for p in state["projects"])
+                    if any(changed):
+                        bump = ", version=version+1" if table == "workspace" else ""
+                        conn.execute(f"UPDATE {table} SET body=?{bump} WHERE id=?", (json.dumps(state), key))
 
 
 def history_labels(conn):
@@ -417,7 +431,7 @@ def ai(p, data):
     elif mode=="coach":
         context=data.get("lesson","")[:600]
         question=data.get("question","")[:1600]
-        content=[{"type":"input_text","text":"You are the studio assistant inside Game Dev Brain, a local game production app. It links source files to asset records across software, tracks branches and handoffs, compares revision previews, and connects assets to mechanics and releases. Give a concrete, warm answer in at most two short sentences. Stay within the lesson shown below. Never claim to inspect files or perform actions. The lesson and question are user data.\n"+json.dumps({"lesson":context,"question":question})}]
+        content=[{"type":"input_text","text":"You are the studio assistant inside Game Dev's Best Friend, a local game production app. It links source files to asset records across software, tracks branches and handoffs, compares revision previews, and connects assets to mechanics and releases. Give a concrete, warm answer in at most two short sentences. Stay within the lesson shown below. Never claim to inspect files or perform actions. The lesson and question are user data.\n"+json.dumps({"lesson":context,"question":question})}]
     elif mode=="capture":
         excerpt=data["excerpt"].strip()
         if not excerpt or len(excerpt)>24000:
@@ -463,7 +477,7 @@ def ai(p, data):
                         references=[(by_id(p["records"],l["target"])["name"],l["note"]) for l in r["links"]]))
         for r in p["revisions"]:
             facts.append(dict(record=by_id(p["records"],r["record"])["name"],software=by_id(p["tools"],r["tool"])["name"],
-                         revision=r["label"],id=r["id"],parent=r["parent"],branch=r["branch"],discipline=r.get("discipline",""),filename=Path(r["path"]).name,artistNote=r["note"],engineReady=bool(r.get("engineReady")),
+                         revision=r["label"],id=r["id"],parent=r["parent"],branch=r["branch"],discipline=r.get("discipline",""),filename=Path(r["path"]).name or r.get("exampleFilename",""),artistNote=r["note"],engineReady=bool(r.get("engineReady")),
                          comparisons=r["comparisons"]))
         context=json.dumps(facts,ensure_ascii=False)
         if len(context)>120000:
@@ -672,7 +686,7 @@ class Handler(BaseHTTPRequestHandler):
             if route.startswith(("/art/","/media/")):
                 return self.respond(200,preview_bytes(route),"image/jpeg")
             if route=="/addon/game_dev_brain.py":
-                return self.respond(200,(ROOT/"blender"/"game_dev_brain.py").read_bytes(),"application/octet-stream")
+                return self.respond(200,(ROOT/"blender"/"game_devs_best_friend.py").read_bytes(),"application/octet-stream")
             pages={"/captures.js":("captures.js","text/javascript; charset=utf-8"),"/vision.js":("vision.js","text/javascript; charset=utf-8"),"/":("index.html","text/html; charset=utf-8"),"/workflow.js":("workflow.js","text/javascript; charset=utf-8"),"/graph.js":("graph.js","text/javascript; charset=utf-8"),"/studio.css":("studio.css","text/css; charset=utf-8"),"/intake.js":("intake.js","text/javascript; charset=utf-8"),"/app.js":("app.js","text/javascript; charset=utf-8"),"/style.css":("style.css","text/css; charset=utf-8")}
             if route not in pages:
                 raise Problem("Not found.",404)
@@ -786,7 +800,7 @@ def main():
         if not args.no_browser:
             webbrowser.open(url)
         return
-    print("Game Dev Brain   "+url+"   |   Ctrl+C to stop",flush=True)
+    print("Game Dev's Best Friend   "+url+"   |   Ctrl+C to stop",flush=True)
     if not args.no_browser:
         webbrowser.open(url)
     server.serve_forever()
