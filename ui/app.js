@@ -231,7 +231,7 @@ function showQuickNote(node,group){
  popup.setAttribute("aria-label","Quick revision note");
  let file=group.find(f=>f.note)||group[0],closeTimer;
  popup.innerHTML=`<div class="spread"><b>${esc(file.label)} · Quick note</b><button type="button" data-close aria-label="Close quick note">×</button></div>${group.length>1?`<select aria-label="File for note">${group.map(f=>opt(f.id,f.path.split(/[\\/]/).at(-1),file.id)).join("")}</select>`:""}<textarea aria-label="Revision note" placeholder="What changed in this version?">${esc(file.note)}</textarea><button class="primary" data-save>Save note</button>`;
- document.body.append(popup);
+ document.body.append(popup);showCapture(popup,file,true);
  const box=node.getBoundingClientRect(),bounds=popup.getBoundingClientRect();
  popup.style.left=Math.max(8,Math.min(box.left,innerWidth-bounds.width-8))+"px";
  popup.style.top=Math.max(8,Math.min(box.bottom+bounds.height+8<innerHeight?box.bottom+4:box.top-bounds.height-4,innerHeight-bounds.height-8))+"px";

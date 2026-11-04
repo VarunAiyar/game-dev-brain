@@ -2,6 +2,17 @@
 
 Double-click **Start Game Dev Brain.cmd**. The app opens in your browser. Keep its console open while you work. Requires Python 3.10+ on Windows. No package installation is needed.
 
+### Capture a revision from Blender
+
+1. Run **Setup Blender Capture.cmd** once to install Meta’s mask decoder beside the app. Connect your Meta Model API key in Game Dev Brain for automatic analysis.
+2. In **History → Blender shortcut**, download the add-on. In Blender **Preferences → Add-ons → Install from Disk**, select `game_dev_brain.py` and enable **Game Dev Brain – Capture checkpoint**.
+3. Save a `.blend` file. With the pointer over a 3D View, press **Ctrl+Alt+Shift+C**. The same command is available in the viewport’s **View** menu. Keep Game Dev Brain running on its default port.
+4. Capture again to add a timestamped checkpoint to the same revision. Save As a numbered sibling such as `Pen_v002.blend`, edit the viewport and capture to create a linked revision. An exact tracked file takes priority, followed by a version series in the same folder and linked Blender folders. Blender asks for a destination if it has no clear match.
+
+Each checkpoint stores the viewport, timestamp, active object, mode, and saved file path locally. The shortcut captures the current viewport even when edits are unsaved. It never saves over the Blender file. Undo a capture in Game Dev Brain.
+
+With a key connected, the first viewport gets a Muse Spark baseline note. Later checkpoints compare against the previous screenshot. Muse Spark describes visible changes and proposes a region. When a changed part is visible in the new image, SAM 3.1 segments it and the inspector draws the decoded mask. Only viewport images and prompts go to Meta. The artist’s own quick note stays separate. A change of camera angle can make comparisons inconclusive. Offline captures can be analyzed later in the checkpoint inspector.
+
 On launch, enter your game’s name. A new name creates a project immediately. An existing name opens that project’s setup. Pick a role, adjust its disciplines and tools, then add a working folder for any software you use. You can leave the others empty. Turn off **Guide me on launch** to return straight to the workspace. **Practice the basics** under **Asset library → Project guide** runs the three hands-on exercises.
 
 **Review the scan.** The app groups versions by asset, software and discipline. Edit each proposed asset, classification, badge and note before saving. Use the same asset name for rigging and modeling. Pick a source version if you know the handoff. Choose formats per folder. Blender defaults to `.blend`. Select `.fbx` when you also want exports. Each format has its own series in the scan and row in the graph. Numbered files sort naturally, including versions with test names after the number. Matching `_Start` and `_Final` files appear in one asset in that order. Installation folders serve as shortcuts. Only project folders are scanned.

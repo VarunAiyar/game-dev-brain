@@ -1,0 +1,1 @@
+meta-sam-parser==0.1.0 --hash=sha256:eca156907911c56cef3a350ffc81c34b7e70655e5fa3ccdddb77042c541a0152

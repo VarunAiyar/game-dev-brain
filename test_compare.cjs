@@ -55,7 +55,7 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
     "print(server.server_port, flush=True)",
     "server.serve_forever()"
   ].join("\n");
-  const server = spawn("python", ["-u", "-c", serve, path.join(temp, "library")], {cwd:__dirname, windowsHide:true});
+  const server = spawn("python", ["-u", "-c", serve, path.join(temp, "library")], {cwd:__dirname, windowsHide:true,env:{...process.env,MODEL_API_KEY:""}});
   let edge, client;
   t.after(async () => {
     try {if (client) await client.send("Browser.close")} finally {
@@ -268,5 +268,22 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   await ev("document.querySelector('[data-key]').value='isolated-test-session-key';document.querySelector('[data-connect]').click()");
   await until(()=>ev("hasKey && document.querySelector('.trace-key').hidden"),"inline session connection");
   assert.equal(await ev("document.querySelector('.trace-crop').hidden"),false);
+
+  await fetch(url+"/api/key",{method:"POST",headers,body:JSON.stringify({key:""})});
+  const capturedPath=path.join(temp,"Lantern_v001.blend");
+  await fs.writeFile(capturedPath,"fixture");
+  const capture=async body=>{
+    const res=await fetch(url+"/api/checkpoint",{method:"POST",headers,body:JSON.stringify(body)});
+    const value=await res.json();assert.equal(res.status,200,value.error);return value;
+  };
+  const route=await capture({mode:"route",path:capturedPath});
+  const jpeg=await fs.readFile(path.join(__dirname,"ui","art","lantern-wide.jpg"),"base64");
+  const captured=await capture({mode:"save",...route.choices[0],path:capturedPath,id:"d".repeat(32),size:[640,480],jpeg});
+  await client.send("Page.reload");
+  await until(()=>ev("typeof data !== 'undefined' && !!data"),"captured library");
+  await ev(`locationState.project=${JSON.stringify(captured.project)}; openRecord(${JSON.stringify(captured.record)},"History",{revision:${JSON.stringify(captured.revision)}})`);
+  await until(()=>ev("document.querySelector('.checkpoint-panel')?.textContent.includes('First viewport captured')"),"checkpoint inspector");
+  assert.equal(await ev("document.querySelector('#inlineNote').value"),"");
+  assert.ok(await ev("document.querySelector('.checkpoint-figure img').naturalWidth>0"));
 
 });

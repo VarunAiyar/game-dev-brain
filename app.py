@@ -10,6 +10,8 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.request
 import webbrowser
@@ -19,16 +21,21 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from sample import example
+import capture_routing
+import capture_vision
 
 ROOT = Path(__file__).resolve().parent
+sys.path.append(str(ROOT / ".capture-deps"))
 UI = ROOT / "ui"
 FORMATS = json.loads((ROOT / "formats.json").read_text(encoding="utf-8"))
 MODEL = "muse-spark-1.3"
 ENDPOINT = "https://api.meta.ai/v1/responses"
 DATA = ROOT / "library"
 TOKEN = secrets.token_urlsafe(32)
+CAPTURE_SESSION = secrets.token_hex(8)
 SESSION_KEY = ""
 MAX_BODY = 12 * 1024 * 1024
+CAPTURE_WORKERS = ThreadPoolExecutor(max_workers=2)
 SAFE_OPEN = set(".blend .spp .ztl .zpr .kra .ora .psd .ai .aseprite .ase .drp .prproj .aep .clip .fbx .obj .gltf .glb .png .jpg .jpeg .webp .wav .mp3 .mp4 .mov .pdf .txt .md .psb .ma .mb .max .hip .hiplc .bbmodel .sbs .sbsar .mra .arm .spine .casc .rpp .aup3 .flp .als .fspro .wproj .uproject .unity .godot .uefnproject .rbxl .rbxlx .rbxm .yyp .mkv .fcpxml .fig .afdesign .csv .docx .m4a .ogg .flac".split())
 
 
@@ -51,6 +58,7 @@ def initialize():
     with closing(db()) as conn, conn:
         conn.execute("CREATE TABLE IF NOT EXISTS workspace(id INTEGER PRIMARY KEY, version INTEGER, body TEXT)")
         conn.execute("CREATE TABLE IF NOT EXISTS previews(id TEXT PRIMARY KEY, data BLOB)")
+        conn.execute("CREATE TABLE IF NOT EXISTS capture_results(id TEXT PRIMARY KEY, result TEXT, receipt TEXT)")
         fresh=conn.execute("INSERT OR IGNORE INTO workspace VALUES (1,1,?)", (json.dumps(example()),)).rowcount
         conn.execute("CREATE TABLE IF NOT EXISTS edits(id INTEGER PRIMARY KEY, direction TEXT, label TEXT, body TEXT)")
         conn.execute("CREATE TABLE IF NOT EXISTS upgrades(name TEXT PRIMARY KEY)")
@@ -146,7 +154,7 @@ def validate(state):
             checked.update(trail)
 
 
-def commit(data):
+def commit(data, capture=None):
     validate(data["state"])
     with closing(db()) as conn, conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -155,6 +163,10 @@ def commit(data):
                              (json.dumps(data["state"]),data["version"])).rowcount
         if not count:
             raise Problem("Another window saved changes. Reload before trying again.", 409)
+        if capture:
+            key,raw,receipt,result=capture
+            conn.execute("INSERT INTO previews VALUES (?,?)",(key,raw))
+            conn.execute("INSERT INTO capture_results VALUES (?,?,?)",(key,json.dumps(result),json.dumps(receipt)))
         conn.execute("DELETE FROM edits WHERE direction='redo'")
         conn.execute("INSERT INTO edits(direction,label,body) VALUES ('undo',?,?)",(str(data.get("label","workspace change"))[:120],previous))
         conn.execute("DELETE FROM edits WHERE id NOT IN (SELECT id FROM edits ORDER BY id DESC LIMIT 40)")
@@ -535,6 +547,81 @@ def picker_types(software=None):
     return filters
 
 
+def capture_analysis(checkpoint,key):
+    try:
+        result=capture_vision.review(checkpoint,key,highlight,preview_bytes,meta_request,image_block)
+    except Exception as exc:
+        result={"status":"error","note":"Analysis unavailable. "+str(exc)[:250]}
+    with closing(db()) as conn, conn:
+        conn.execute("UPDATE capture_results SET result=? WHERE id=?",(json.dumps(result),checkpoint["id"]))
+
+
+def checkpoint_action(data):
+    mode=data.get("mode")
+    key=SESSION_KEY or os.environ.get("MODEL_API_KEY","")
+    if mode in ("result","retry"):
+        cid=data.get("id","")
+        with closing(db()) as conn, conn:
+            row=conn.execute("SELECT result,receipt FROM capture_results WHERE id=?",(cid,)).fetchone()
+            if not row:
+                raise Problem("Checkpoint unavailable.",404)
+            result=json.loads(row[0])
+            if mode=="result":
+                if result["status"]=="pending" and result.get("session")!=CAPTURE_SESSION:
+                    return {"status":"interrupted","note":"Server restarted before analysis finished."}
+                return result
+            if not key:
+                raise Problem("Connect Meta AI first.",422)
+            if result["status"]=="pending" and result.get("session")==CAPTURE_SESSION:
+                return result
+            receipt=json.loads(row[1])
+            p=by_id(snapshot()["state"]["projects"],receipt["project"])
+            v=by_id(p["revisions"],receipt["revision"])
+            cp=by_id(v.get("checkpoints",[]),cid)
+            pending={"status":"pending","note":"Analyzing the viewport…","session":CAPTURE_SESSION}
+            if conn.execute("UPDATE capture_results SET result=? WHERE id=? AND result=?",(json.dumps(pending),cid,row[0])).rowcount:
+                CAPTURE_WORKERS.submit(capture_analysis,cp,key)
+            return pending
+    path=Path(data.get("path",""))
+    if not path.is_absolute() or path.suffix.lower()!=".blend" or not path.is_file():
+        raise Problem("Save the Blender file to disk first.")
+    snap=snapshot()
+    projects=snap["state"]["projects"]
+    choices,matched=capture_routing.destinations(projects,path)
+    if mode=="route":
+        return {"choices":choices,"automatic":matched and len(choices)==1}
+    if mode!="save":
+        raise Problem("Unknown capture operation.")
+    cid=data.get("id","")
+    if not re.fullmatch("[0-9a-f]{32}",cid):
+        raise Problem("Invalid checkpoint identifier.")
+    with closing(db()) as conn:
+        row=conn.execute("SELECT receipt FROM capture_results WHERE id=?",(cid,)).fetchone()
+        if row:
+            return json.loads(row[0])
+    choice=next((c for c in choices if (c["project"],c["source"])==(data.get("project"),data.get("source"))),None)
+    if not choice:
+        raise Problem("The branch changed. Capture again to choose its current destination.",409)
+    size=data.get("size")
+    if not isinstance(size,list) or len(size)!=2 or not all(type(n) is int and 0<n<=1280 for n in size):
+        raise Problem("Invalid checkpoint dimensions.")
+    raw=screenshot_bytes(data)
+    cp={"id":cid,"preview":"/media/"+cid,"time":int(time.time()),"size":size,
+        "object":str(data.get("object",""))[:160],"mode":str(data.get("context",""))[:60],"dirty":bool(data.get("dirty"))}
+    p,v=capture_routing.attach(projects,choice,path,cp)
+    label=p["name"]+" / "+by_id(p["records"],v["record"])["name"]+" / "+v["label"]
+    receipt={"project":p["id"],"record":v["record"],"revision":v["id"],"label":label,"id":cid}
+    if not key:
+        result=capture_vision.review(cp,"",highlight,preview_bytes,meta_request,image_block)
+    else:
+        result={"status":"pending","note":"Analyzing the viewport…","session":CAPTURE_SESSION}
+    snap["label"]="Blender checkpoint · "+label
+    commit(snap,(cid,raw,receipt,result))
+    if result["status"]=="pending":
+        CAPTURE_WORKERS.submit(capture_analysis,cp,key)
+    return receipt
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args):
         pass
@@ -559,13 +646,23 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.guard()
             route=urlsplit(self.path).path
+            if route=="/api/capture-session":
+                return self.respond(200,{"token":TOKEN,"session":CAPTURE_SESSION})
+            if route=="/api/library-version":
+                with closing(db()) as conn:
+                    conn.execute("BEGIN")
+                    version=conn.execute("SELECT version FROM workspace WHERE id=1").fetchone()[0]
+                    last=conn.execute("SELECT receipt FROM capture_results ORDER BY rowid DESC LIMIT 1").fetchone()
+                return self.respond(200,{"version":version,"latest":json.loads(last[0]) if last else None})
             if route=="/api/state":
                 return self.respond(200,dict(**snapshot(),formats=FORMATS,token=TOKEN,hasKey=bool(SESSION_KEY or os.getenv("MODEL_API_KEY"))))
             if route in ("/art/logo-geogen.svg","/art/logo-threedcoat.svg"):
                 return self.respond(200,(UI/route[1:]).read_bytes(),"image/svg+xml")
             if route.startswith(("/art/","/media/")):
                 return self.respond(200,preview_bytes(route),"image/jpeg")
-            pages={"/vision.js":("vision.js","text/javascript; charset=utf-8"),"/":("index.html","text/html; charset=utf-8"),"/workflow.js":("workflow.js","text/javascript; charset=utf-8"),"/graph.js":("graph.js","text/javascript; charset=utf-8"),"/studio.css":("studio.css","text/css; charset=utf-8"),"/intake.js":("intake.js","text/javascript; charset=utf-8"),"/app.js":("app.js","text/javascript; charset=utf-8"),"/style.css":("style.css","text/css; charset=utf-8")}
+            if route=="/addon/game_dev_brain.py":
+                return self.respond(200,(ROOT/"blender"/"game_dev_brain.py").read_bytes(),"application/octet-stream")
+            pages={"/captures.js":("captures.js","text/javascript; charset=utf-8"),"/vision.js":("vision.js","text/javascript; charset=utf-8"),"/":("index.html","text/html; charset=utf-8"),"/workflow.js":("workflow.js","text/javascript; charset=utf-8"),"/graph.js":("graph.js","text/javascript; charset=utf-8"),"/studio.css":("studio.css","text/css; charset=utf-8"),"/intake.js":("intake.js","text/javascript; charset=utf-8"),"/app.js":("app.js","text/javascript; charset=utf-8"),"/style.css":("style.css","text/css; charset=utf-8")}
             if route not in pages:
                 raise Problem("Not found.",404)
             name,mime=pages[route]
@@ -590,6 +687,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def action(self,route,data):
         global SESSION_KEY
+        if route=="/api/checkpoint":
+            return checkpoint_action(data)
         if route=="/api/save":
             return commit(data)
         if route in ("/api/undo","/api/redo"):
