@@ -278,7 +278,7 @@ function traceScreenshot(r,revs,useExample=false){
  let candidates=orderedRevisions(revs.filter(v=>v.preview));
  const example=project().id==="canopy"&&["ridge-raptor","bird"].includes(r.id);
  const guided=visualTour?.kind==="trace"&&visualTour.c.asset===r.id;
- const choices=checked=>candidates.map(v=>`<label class="trace-candidate"><input type="checkbox" value="${esc(v.id)}" ${checked.includes(v.id)?"checked":""}>${image(v.preview,"candidate-thumb","")}<span>${toolIcon(toolName(v.tool))} ${esc(fileName(v)||revisionLabel(v))}<small>${esc(v.path||v.branch)}</small></span></label>`).join("");
+ const choices=checked=>candidates.map(v=>`<label class="trace-candidate"><input type="checkbox" value="${esc(v.id)}" ${checked.includes(v.id)?"checked":""}>${image(v.preview,"candidate-thumb","")}<span>${toolIcon(toolName(v.tool))} ${esc(nodeTitle(v))}<small>${esc(v.path||v.branch)}</small></span></label>`).join("");
  const missingOptions=()=>orderedRevisions(revs.filter(v=>!v.preview)).map(v=>opt(v.id,v.path||revisionLabel(v),"")).join("");
  const missing=missingOptions();
  modal(traceLabel,`<div id="tracePane"><small class="eyebrow">Meta vision · ${esc(r.name)}</small>
@@ -399,7 +399,7 @@ function traceScreenshot(r,revs,useExample=false){
        const files=match.revisions.map(key=>find(revs,key)).filter(Boolean);
        row.innerHTML=`${files[0]?image(files[0].preview,"trace-thumb","Candidate preview"):""}<div><p>${esc(match.evidence)}</p>${files.length>1?"<small>These revisions share the same screenshot.</small>":""}</div>`;
        for(const v of files){
-         const open=document.createElement("button");open.type="button";open.textContent="Show in graph · "+(fileName(v)||revisionLabel(v));open.title=v.path;
+         const open=document.createElement("button");open.type="button";open.textContent="Show in graph · "+(nodeTitle(v));open.title=v.path;
          open.onclick=()=>{const live=find(project().revisions,v.id);if(!live||live.record!==r.id||live.preview!==v.preview){results.textContent="This revision changed. Reopen Trace screenshot to compare the current previews.";return}dialog.close();openRecord(r.id,"History",{revision:v.id})};
          row.lastElementChild.append(open)
        }
@@ -407,7 +407,7 @@ function traceScreenshot(r,revs,useExample=false){
      }
      const keep=document.createElement("button"),sourceId=id(),projectId=project().id;
      keep.type="button";keep.dataset.keepTrace="";keep.textContent="Save to Sources & decisions";results.append(keep);
-     const label=v=>fileName(v)||revisionLabel(v);
+     const label=v=>nodeTitle(v);
      const source={id:sourceId,kind:"Playtest",name:"Visual trace · "+(field.files[0]?.name||r.name),url:"",note:titles[res.status]+" — "+res.summary,
        excerpt:["Muse Spark compared the screenshot region with "+chosen.length+" revision previews.",...res.matches.map(m=>m.revisions.map(k=>label(find(revs,k))).join(" / ")+" — "+m.evidence)].join("\n"),
        traceRevisions:res.matches.flatMap(m=>m.revisions),traceModel:res.model};

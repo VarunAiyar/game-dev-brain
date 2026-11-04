@@ -146,6 +146,7 @@ dialog:has(.discipline-settings,#classPosition) #formError{margin:0;padding:0 20
 .rev-face:hover,.rev-face:focus-visible{background:color-mix(in srgb,var(--node-ink) 7%,transparent)}
 .rev-face strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;overflow-wrap:anywhere;font:650 15px/1.17 "Segoe UI",sans-serif;letter-spacing:-.02em}
 .rev-branch{font-size:11px}.ready-tag{font:600 10px var(--mono);color:#39362e}
+.inspector-head h2{min-width:0;overflow-wrap:anywhere}
 .asset-process{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:10px 15px;background:#f7f5ef;border-bottom:1px solid var(--line)}
 .workbench .rev-card.picked{outline:2px solid #312f28;outline-offset:2px}
 .graph-scroll,.graph-scroll:active{cursor:crosshair}.graph-scroll.panning,.graph-scroll.panning *{cursor:grabbing}

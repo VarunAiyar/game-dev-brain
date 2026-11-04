@@ -157,6 +157,7 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   assert.equal(await ev("detectSoftware({tools:[]},'D:/exports/tree.fbx')"),"");
   assert.equal(await ev("detectSoftware({tools:[{name:'Maya',folders:['D:/Maya'],extensions:'.fbx'}]},'D:/Maya/export.fbx')"),"Maya");
   await mouse(node("Pen_Start.blend"), "right");
+  await ev("[...document.querySelectorAll('.compare-menu button')].find(b=>b.textContent==='Edit revision').click()");
   assert.equal(await ev("dialog.open && $('#dialogTitle').textContent"), "Edit revision");
   await mouse("#cancel");
   await mouse(node("Pen_Start.blend"), "left", 2);
@@ -415,6 +416,23 @@ test("Graph selection, exact revision comparisons, visual review, screenshot tra
   assert.deepEqual(await ev(`(() => {const v=project().revisions.find(v=>v.id===${JSON.stringify(high.revision)});return [v.parent,v.branch,v.path]})()`),
     [captured.revision,"High poly",highPolyPath]);
   assert.ok(await ev(`!!document.querySelector('[data-revision="${high.revision}"]')`));
+  const highCard=`[data-revision="${high.revision}"] .rev-face`;
+  await mouse(highCard,"right");
+  await ev("[...document.querySelectorAll('.compare-menu button')].find(b=>b.textContent==='Edit node filename').click()");
+  await ev("$('#nodeName').value='DeskLamp_v002'");
+  await mouse("#submit");
+  await until(()=>ev("!dialog.open && document.querySelector('.inspector-head h2')?.textContent==='DeskLamp_v002'"),"renamed node inspector");
+  assert.equal(await ev(`document.querySelector('${highCard} strong').textContent`),"DeskLamp_v002");
+  await ev(`showQuickNote(document.querySelector('${highCard}'),[find(project().revisions,${JSON.stringify(high.revision)})])`);
+  assert.match(await ev("$('#quickNote b').textContent"),/DeskLamp_v002/);
+  await ev(`openRecord(${JSON.stringify(high.record)},"Compare",{before:${JSON.stringify(captured.revision)},after:${JSON.stringify(high.revision)}})`);
+  assert.match(await ev("$('#after').selectedOptions[0].textContent"),/DeskLamp_v002/);
+  await client.send("Page.reload");
+  await until(()=>ev("typeof data!=='undefined' && !!data && !!document.querySelector('#after')"),"renamed node after reload");
+  assert.match(await ev("$('#after').selectedOptions[0].textContent"),/DeskLamp_v002/);
+  assert.equal(await ev(`find(project().revisions,${JSON.stringify(high.revision)}).path`),highPolyPath);
+  await ev("travelEdit('undo')");
+  assert.equal(await ev(`find(project().revisions,${JSON.stringify(high.revision)}).nodeName||''`),"");
 
   await ev(`change((p,state)=>state.projects.push({id:"trace-test",name:"Mechs",sections:p.sections,classes:[],records:[],tools:p.tools,revisions:[]}))`);
   await ev("locationState={project:'trace-test',view:'home'};render()");

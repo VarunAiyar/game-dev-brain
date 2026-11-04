@@ -42,6 +42,15 @@ function detectSoftware(p,path,context){
 }
 const classPath=cls=>lineage(cls).map(c=>c.name).join(" / ");
 const fileName=v=>v.path?.split(/[\\/]/).at(-1)||v.exampleFilename||"";
+const nodeTitle=v=>v.nodeName||fileName(v)||v.label;
+function renameNode(v){
+ modal("Edit node filename",input("nodeName","Node filename",nodeTitle(v))+
+  `<small>The display filename used throughout the app. Leave blank to use the filename on disk.</small><p><b>Filename on disk</b><br>${esc(fileName(v)||"No file linked")}</p>`,async()=>{
+   const name=val("nodeName");
+   await change(p=>{find(p.revisions,v.id).nodeName=name});render()
+  },"Save name");
+ $("#nodeName").placeholder=nodeTitle(v);$("#nodeName").focus();$("#nodeName").select()
+}
 const numericLabels=new Intl.Collator(undefined,{numeric:true,sensitivity:"base"});
 function versionCompare(a,b){
  const phase=v=>/^start$/i.test(v.label)?-1:/^final$/i.test(v.label)?1:0;
@@ -99,14 +108,14 @@ function defaultAccent(tool){
 function nodeColor(v){return /^#[\da-f]{6}$/i.test(v.color)?v.color:defaultAccent(toolName(v.tool))}
 function colorDialog(v){
  const base=defaultAccent(toolName(v.tool));
- modal("Node color",`<p>Choose a tint for ${esc(fileName(v)||v.label)}.</p>`+input("nodeTint","Custom tint",nodeColor(v),"color")+`<label class="switch-line"><input id="autoTint" type="checkbox" ${v.color?"":"checked"}> Use ${esc(toolName(v.tool))} logo color</label>`,async()=>{
+ modal("Node color",`<p>Choose a tint for ${esc(nodeTitle(v))}.</p>`+input("nodeTint","Custom tint",nodeColor(v),"color")+`<label class="switch-line"><input id="autoTint" type="checkbox" ${v.color?"":"checked"}> Use ${esc(toolName(v.tool))} logo color</label>`,async()=>{
   await change(p=>{const x=find(p.revisions,v.id);if($("#autoTint").checked)delete x.color;else x.color=val("nodeTint")});render()
  });
  $("#nodeTint").oninput=()=>{$("#autoTint").checked=false};$("#autoTint").onchange=e=>{if(e.target.checked)$("#nodeTint").value=base}
 }
 function graphSettings(r,revs){
  const g=r.graphPrefs||{},types=[...new Set(revs.map(v=>fileExt(fileName(v))).filter(Boolean))].sort();
- modal("Graph settings",select("graphTitles","Card titles",[["file","Filename first"],["version","Version first"],["short","Version only"]].map(([k,n])=>opt(k,n,g.titles||"file")).join(""))+select("graphFormat","Visible file type",opt("","All tracked files",g.format||"")+types.map(t=>opt(t,t,g.format)).join(""))+`<label class="switch-line"><input type="checkbox" id="graphPics" ${g.previews!==false?"checked":""}> Show preview thumbnails</label>`,async()=>{
+ modal("Graph settings",select("graphTitles","Card titles",[["file","Node filename first"],["version","Version label first"],["short","Version label only"]].map(([k,n])=>opt(k,n,g.titles||"file")).join(""))+select("graphFormat","Visible file type",opt("","All tracked files",g.format||"")+types.map(t=>opt(t,t,g.format)).join(""))+`<label class="switch-line"><input type="checkbox" id="graphPics" ${g.previews!==false?"checked":""}> Show preview thumbnails</label>`,async()=>{
   await change(p=>{find(p.records,r.id).graphPrefs={titles:val("graphTitles"),format:val("graphFormat"),previews:$("#graphPics").checked}});locationState.showAll=false;render()
  })
 }
@@ -132,7 +141,7 @@ function transferMessage(p,v,dest){
  const family=transferSet(p,v,dest);
  if(!family.length)return "Already in this graph. Save to update this revision.";
  const readyConflict=family.some(f=>f.engineReady)&&p.revisions.some(f=>f.record===dest&&f.engineReady);
- return `Move ${fileName(v)||v.label} from ${find(p.records,v.record).name} into this asset.${family.length>1?` Its ${family.length-1} linked revision${family.length===2?"":"s"} will move with it to preserve handoffs and comparisons.`:""}${readyConflict?" The destination keeps its current engine-ready version.":""}`
+ return `Move ${nodeTitle(v)} from ${find(p.records,v.record).name} into this asset.${family.length>1?` Its ${family.length-1} linked revision${family.length===2?"":"s"} will move with it to preserve handoffs and comparisons.`:""}${readyConflict?" The destination keeps its current engine-ready version.":""}`
 }
 function moveTracked(p,v,dest){
  const group=transferSet(p,v,dest);
@@ -142,7 +151,7 @@ function moveTracked(p,v,dest){
 function chooseTracked(r,parent){
  const p=project(),items=p.revisions.filter(v=>v.path&&v.record!==r.id);
  if(!items.length){toast("This project has no tracked files in other assets.");return}
- modal("Bring a tracked file here",select("trackedSource","Tracked file",items.map(v=>opt(v.id,`${recordName(v.record)} / ${fileName(v)}`,"")).join(""))+`<p id="moveImpact"></p>`+select("trackedParent","Derived from",opt("","Keep existing source",parent?.id)+p.revisions.filter(v=>v.record===r.id).map(v=>opt(v.id,(fileName(v)||revisionLabel(v))+" · "+v.label,parent?.id)).join("")),async()=>{
+ modal("Bring a tracked file here",select("trackedSource","Tracked file",items.map(v=>opt(v.id,`${recordName(v.record)} / ${fileName(v)}`,"")).join(""))+`<p id="moveImpact"></p>`+select("trackedParent","Derived from",opt("","Keep existing source",parent?.id)+p.revisions.filter(v=>v.record===r.id).map(v=>opt(v.id,(nodeTitle(v))+" · "+v.label,parent?.id)).join("")),async()=>{
   const key=val("trackedSource"),source=val("trackedParent");await change(p=>{const v=find(p.revisions,key);moveTracked(p,v,r.id);if(source)v.parent=source});await revealRevision(find(project().records,r.id),find(project().revisions,key))
  },"Bring into this graph");
  const update=()=>{$("#moveImpact").textContent=transferMessage(p,find(p.revisions,val("trackedSource")),r.id)};$("#trackedSource").onchange=update;update()
@@ -153,17 +162,18 @@ const fieldHelp=[
  [/^Find by project|^Search names/i,"Search by filename, software, asset name or version to return to its history."],
  [/^What would you like help with/i,"Ask the studio assistant about the current setup step or practice exercise."],
  [/^Position among siblings$/i,"Choose where this class appears under its parent. Its assets and subclasses move with it."],
+ [/^Node filename$/i,"The display filename for this one node. Used in the graph, Compare, notes and source links. Its original file is linked separately by File path on disk."],
  [/^Project name$/i,"The name of your game in this workspace. Each project keeps its own asset histories, tools and classes."],
  [/^Comparison note/i,"Record the differences between the two versions on screen. The saved note stays with that pair."],
  [/^Before$|^After$/i,"Choose the revision to show on this side of the comparison."],
  [/^Existing record$|^Role in this record$/i,"Link an existing asset or feature here and explain how it is used. Its Used in tab links back."],
  [/^Question$/i,"Ask Meta about the files, handoffs and decisions saved in the current project."],
- [/^Linked record$|^Asset name$|^Record name$/i,"The game asset that owns this history. A single asset can have Blender, Painter and engine files."],
+ [/^Asset$|^Linked record$|^Asset name$|^Record name$/i,"The game asset that owns this history. A single asset can have Blender, Painter and engine files."],
  [/^Branch\b/i,"A named line of work on this asset. Keep successive rig fixes on “Rigging”, or give an experiment its own branch, such as “Longer claws”."],
  [/^Discipline$|^Task \/ branch|^What are you doing/i,"The production step this file belongs to, such as modeling, texturing, rigging or engine integration."],
  [/^Source revision|^Derived from|^Source version/i,"Choose the exact version you used to make this one. The graph draws an arrow from that source. Leave it independent if you don’t know."],
- [/^Revision label$|^Version$/i,"A short name for this point in the history, such as v007, Start or Final. The original filename is kept separately."],
- [/^Source file path$|^Source file$|^Project file$/i,"Where the original file lives on your PC. Browse to it once so you can reopen it from the graph."],
+ [/^Version label$|^Revision label$|^Version$/i,"A short name for this point in the history, such as v001, Start or Final. The original filename is kept separately."],
+ [/^File path on disk$|^Source file path$|^Source file$|^Project file$/i,"Where the original file lives on your PC. Browse to it once so you can reopen it from the graph."],
  [/^Software$|^Created in$|^Software name$/i,"The application that produced this file, such as Blender for a .blend project or Painter for a .spp texture project."],
  [/^Artist note|^Quick note|^What did you create/i,"Write what changed or why you saved this version. This note stays with the file and appears when you hover its card."],
  [/^Preview image|^Use an image/i,"An optional screenshot or render for the card and side-by-side comparisons. Choose the working file separately."],
@@ -176,7 +186,7 @@ const fieldHelp=[
  [/^File types to track|^File extensions/i,"Only the checked file types are discovered in this folder. For Blender, .blend is the editable project and .fbx is an export."],
  [/^Project folders|^Application folder/i,"Choose folders for this tool and game. Working folders are scanned for matching files. Installation folders are shortcuts."],
  [/^Tracked file$/i,"Pick a revision that is already in another asset history in this project. Review which linked files will move before saving."],
- [/^Card titles$/i,"Choose which text is largest on each card. Filename first shows the real file above its version label."],
+ [/^Card titles$/i,"Choose which text is largest on each card. A custom node filename appears as the card title. The linked filename stays visible in the inspector."],
  [/^Visible file type$/i,"Show one file format in this graph or show all of them. Hidden files stay tracked."],
  [/^Custom tint$/i,"Pick an accent for this node. The card uses a light tint for readability. Use the software color option to reset it."],
  [/^Asset emoji|^Emoji|^Image or emoji/i,"A small visual identifier for this asset in the library."],
@@ -208,6 +218,7 @@ const actionHelp=[
  [/^Compare revisions$|^Compare$/,"Choose two versions of this asset to inspect their previews and record the differences."],
  [/^Disconnect source$/,"Remove the selected version’s incoming arrow. Its file and notes stay with the asset."],
  [/^Earlier$|^Later$/,"Move this version one place within the same branch and format. You can reverse a direct source arrow after reviewing the change."],
+ [/^Edit node filename$/,"Rename this node throughout the app. Its linked file path is shown separately."],
  [/^Edit revision$/,"Change this file’s label, branch, discipline, source, notes or preview."],
  [/^Reveal$|^Show in folder$/,"Select this original file in Windows Explorer."],
  [/^Fit$/,"Zoom the canvas to fit the visible revision cards."],
@@ -215,7 +226,7 @@ const actionHelp=[
  [/^Used in/,"See which mechanics, systems and other project records reference this asset."],
  [/^History$/,"Open the asset’s revisions and the handoffs between tools."],
  [/^Organize folder assets$|^Scan folders$/,"Look in linked folders for files that match their selected extensions."],
- [/^Edit record$/,"Edit the asset’s name, home section, classification, description and preview."]
+ [/^Edit asset$|^Edit record$/,"Edit the asset’s name, home section, classification, description and preview."]
 ];
 function guidance(text,table){return table.find(([re])=>re.test(text.trim()))?.[1]||""}
 function explainFields(root){

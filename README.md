@@ -32,6 +32,8 @@ Click the Game Dev's Best Friend logo to return to the opening screen. **How Gam
 
 Open an asset in **Asset library**. Its Blender source, textures, engine imports and other working files can each stay in a different folder.
 
+**Asset name** identifies the library entry and page. **Class name** identifies its group. To rename a graph card, right-click it and choose **Edit node filename**. This display name is used in the graph, inspector, quick notes, comparisons, and source links. **Version label** describes the stage, such as v001 or Final. **File path on disk** identifies the linked source file.
+
 - **Add files** opens a multi-select picker. Use **More files** to add another folder’s files before saving. Each file has its own software, version, branch and note.
 - Drop files on the dotted canvas to track them. Drop them on a card to preselect that version as their source. The review looks for matching names, sizes and modification times in linked folders and directories containing tracked files. Check the proposed paths. For an unknown or ambiguous path, choose the original.
 - **Bring tracked file** joins a file from another asset in this project. The review lists the impact on linked revisions. Picking the same path through **Add files** also reuses its saved revision.
